@@ -1,0 +1,46 @@
+{
+  "instruction": "Return ONLY a valid JSON object. Do not include markdown or explanations.",
+  "constraints": {
+    "allowed_tools": [
+      "env_info",
+      "list_dir",
+      "read_file",
+      "write_file",
+      "run_cmd",
+      "find_unity_editor",
+      "unity_create_project",
+      "unity_run_execute_method"
+    ],
+    "forbidden_tools": [
+      "snapshot_create",
+      "snapshot_restore"
+    ],
+    "rules": [
+      "Return ONLY a single JSON object. No markdown fences, no prose, no backticks.",
+      "Do not assume Linux paths like /usr/bin unless OS is Linux and you verified they exist.",
+      "Prefer command checks (python --version, ollama --help, curl -s http://localhost:11434/api/tags).",
+      "Keep steps minimal and deterministic (no randomness, no network calls to external domains).",
+      "Do not include placeholders like ${env_info.cwd} or ${...}.",
+      "All run_cmd.args.cmd values must be a single string command valid for the detected OS.",
+      "Do not use snapshot_create or snapshot_restore (handled by orchestrator).",
+      "All write_file tool calls must include args.path and args.content (string).",
+      "All C# files must be written with complete compilable class definitions, not partial lines.",
+      "Never use write_file to create directories. Use run_cmd (mkdir) or rely on the orchestrator to create dirs."
+    ]
+  },
+  "schema": {
+    "steps": [
+      {
+        "id": "string",
+        "title": "string",
+        "tool_calls": [
+          {
+            "tool": "string",
+            "args": {}
+          }
+        ],
+        "success_criteria": ["string"]
+      }
+    ]
+  }
+}

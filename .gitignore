@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+logs/
+backups/
+memory/current_state.json
+projects/**/Library/
+projects/**/Temp/
+projects/**/Obj/
+projects/**/Build/
