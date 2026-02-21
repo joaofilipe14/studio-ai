@@ -97,6 +97,13 @@ def main() -> int:
     # Delete unity logs
     if args.delete_logs:
         delete_unity_logs(repo_root, pattern="unity-")
+        logs_folder = repo_root / "logs"
+        if logs_folder.exists() and not any(logs_folder.iterdir()):
+            # Se a pasta estiver vazia após apagar os logs, removemos a pasta
+            safe_rmtree(repo_root, "logs")
+        elif logs_folder.exists():
+            # Forçar a remoção da pasta e tudo lá dentro
+            safe_rmtree(repo_root, "logs")
 
     # Delete backups (optional)
     if args.delete_backups:

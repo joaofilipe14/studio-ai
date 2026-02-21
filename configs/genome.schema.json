@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GameGenome",
+  "type": "object",
+  "required": ["version", "seed", "arena", "rules", "agent", "goal", "obstacles"],
+
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+
+    "seed": {
+      "type": "integer"
+    },
+
+    "arena": {
+      "type": "object",
+      "required": ["halfSize", "walls"],
+      "properties": {
+        "halfSize": {
+          "type": "number",
+          "minimum": 4,
+          "maximum": 50
+        },
+        "walls": {
+          "type": "boolean"
+        }
+      }
+    },
+
+    "rules": {
+      "type": "object",
+      "required": ["timeLimit", "rounds"],
+      "properties": {
+        "timeLimit": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 300
+        },
+        "rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "respawnOnWin": {
+          "type": "boolean"
+        },
+        "respawnOnLose": {
+          "type": "boolean"
+        }
+      }
+    },
+
+    "agent": {
+      "type": "object",
+      "required": ["type", "speed"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["SimpleAgent", "NavMeshAgent"]
+        },
+        "speed": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 20
+        },
+        "acceleration": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 50
+        },
+        "angularSpeed": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 2000
+        },
+        "stopDistance": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 5
+        },
+        "stuckTimeout": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 20
+        }
+      }
+    },
+
+    "goal": {
+      "type": "object",
+      "required": ["radius"],
+      "properties": {
+        "radius": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 5
+        },
+        "minDistanceFromAgent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 50
+        }
+      }
+    },
+
+    "obstacles": {
+      "type": "object",
+      "required": ["mode", "count"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["arena", "maze"]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 200
+        },
+        "sizeMin": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "sizeMax": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "ensurePath": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

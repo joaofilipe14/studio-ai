@@ -121,3 +121,35 @@ def env_info() -> ToolResult:
         })
     except Exception as e:
         return ToolResult(False, f"env_info error: {e}")
+
+def run_game_simulation(exe_path: str, metrics_path: str, timeout: int = 120) -> ToolResult:
+    """
+    Executa o jogo Unity em modo Headless, espera que feche, e lê o metrics.json.
+    """
+    try:
+        import subprocess, os, json
+
+        if not os.path.exists(exe_path):
+            return ToolResult(False, f"Executable not found: {exe_path}")
+
+        # Apaga métricas antigas para garantir que lemos as novas
+        if os.path.exists(metrics_path):
+            os.remove(metrics_path)
+
+        cmd = [exe_path, "-batchmode", "-nographics"]
+
+        # Executa e bloqueia o script até o jogo terminar (ou dar timeout)
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+        if not os.path.exists(metrics_path):
+            return ToolResult(False, "Simulation finished but metrics.json not found. Did it crash?", {"stdout": p.stdout})
+
+        with open(metrics_path, "r", encoding="utf-8") as f:
+            metrics = json.load(f)
+
+        return ToolResult(True, "Simulation ok", {"metrics": metrics, "stdout": p.stdout})
+
+    except subprocess.TimeoutExpired:
+        return ToolResult(False, "Simulation timed out.")
+    except Exception as e:
+        return ToolResult(False, f"Simulation error: {e}")

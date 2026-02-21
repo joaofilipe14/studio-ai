@@ -1,0 +1,25 @@
+{
+  "mode": "PointToPoint",
+  "seed": 42,
+  "arena": {
+    "halfSize": 10.0,
+    "walls": true
+  },
+  "agent": {
+    "speed": 6.0,
+    "acceleration": 12.0,
+    "stopDistance": 0.5,
+    "userControl": false
+  },
+  "obstacles": {
+    "count": 8,
+    "minScale": 1.0,
+    "maxScale": 2.5
+  },
+  "rules": {
+    "timeLimit": 30.0,
+    "rounds": 5,
+    "targetCount": 1,
+    "enemySpeed": 1.0
+  }
+}
