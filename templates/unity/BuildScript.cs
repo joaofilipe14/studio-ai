@@ -9,6 +9,19 @@ using UnityEditor.Build.Reporting;
 
 public static class BuildScript
 {
+    // --- FUNÇÃO NOVA VISUAL SEGURA ---
+    static Material CreateColorMaterial(string name, Color color, bool glow = false)
+    {
+        Material mat = new Material(Shader.Find("Standard"));
+        mat.color = color;
+        if (glow)
+        {
+            mat.EnableKeyword("_EMISSION");
+            mat.SetColor("_EmissionColor", color * 2.5f);
+        }
+        return mat;
+    }
+
     static void EnsureTagsExist()
     {
         SerializedObject tagManager = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
@@ -32,7 +45,6 @@ public static class BuildScript
             {
                 tagsProp.InsertArrayElementAtIndex(tagsProp.arraySize);
                 tagsProp.GetArrayElementAtIndex(tagsProp.arraySize - 1).stringValue = tagName;
-                Debug.Log($"[BuildScript] Tag criada: {tagName}");
             }
         }
         tagManager.ApplyModifiedProperties();
@@ -41,14 +53,29 @@ public static class BuildScript
     public static void MakeBuild()
     {
         EnsureTagsExist();
-        Directory.CreateDirectory("Assets/Scenes");
+
+        if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
+        {
+            AssetDatabase.CreateFolder("Assets", "Scenes");
+        }
         Directory.CreateDirectory("Builds");
 
         string genomePath = Path.Combine(Directory.GetCurrentDirectory(), "game_genome.json");
-        GameGenome genome = GameGenome.Load(genomePath);
+
+        // CORREÇÃO AQUI: Lê a coleção inteira e usa a primeira configuração para criar o tamanho da Arena
+        GameGenomeCollection allGenomes = GameGenomeCollection.Load(genomePath);
+        GameGenome genome = (allGenomes != null && allGenomes.configs != null && allGenomes.configs.Length > 0)
+                            ? allGenomes.configs[0]
+                            : new GameGenome();
+        genome.Validate();
 
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        EditorSceneManager.SaveScene(scene, "Assets/Scenes/Main.unity");
+
+        // --- MATERIAIS VISUAIS ---
+        Material matFloor = CreateColorMaterial("FloorMat", new Color(0.1f, 0.1f, 0.15f));
+        Material matWall = CreateColorMaterial("WallMat", new Color(0.2f, 0.2f, 0.3f));
+        Material matAgent = CreateColorMaterial("AgentMat", Color.cyan, true);
+        Material matGoal = CreateColorMaterial("GoalMat", Color.yellow, true);
 
         // Camera & Lights
         var camGO = new GameObject("Main Camera");
@@ -56,10 +83,14 @@ public static class BuildScript
         camGO.tag = "MainCamera";
         camGO.transform.position = new Vector3(0, 15f, -12f);
         camGO.transform.rotation = Quaternion.Euler(55f, 0f, 0f);
+        cam.backgroundColor = new Color(0.05f, 0.05f, 0.1f);
+        cam.clearFlags = CameraClearFlags.SolidColor;
 
         var lightGO = new GameObject("Directional Light");
         var light = lightGO.AddComponent<Light>();
         light.type = LightType.Directional;
+        light.color = new Color(0.8f, 0.8f, 1f);
+        light.intensity = 0.7f;
         lightGO.transform.rotation = Quaternion.Euler(50, -30, 0);
 
         // Floor
@@ -68,16 +99,17 @@ public static class BuildScript
         float planeScale = (genome.arena.halfSize * 2f) / 10f;
         floor.transform.localScale = new Vector3(planeScale, 1f, planeScale);
         floor.transform.position = Vector3.zero;
+        floor.GetComponent<Renderer>().material = matFloor;
         GameObjectUtility.SetStaticEditorFlags(floor, StaticEditorFlags.NavigationStatic);
 
-        // Paredes - O CreatePrimitive já adiciona BoxCollider automaticamente
+        // Paredes
         if (genome.arena.walls)
         {
             float h = genome.arena.halfSize;
-            CreateWall("Wall_N", new Vector3(0, 0.5f, h), new Vector3(h * 2f, 1f, 0.5f));
-            CreateWall("Wall_S", new Vector3(0, 0.5f, -h), new Vector3(h * 2f, 1f, 0.5f));
-            CreateWall("Wall_E", new Vector3(h, 0.5f, 0), new Vector3(0.5f, 1f, h * 2f));
-            CreateWall("Wall_W", new Vector3(-h, 0.5f, 0), new Vector3(0.5f, 1f, h * 2f));
+            CreateWall("Wall_N", new Vector3(0, 0.5f, h), new Vector3(h * 2f, 1f, 0.5f), matWall);
+            CreateWall("Wall_S", new Vector3(0, 0.5f, -h), new Vector3(h * 2f, 1f, 0.5f), matWall);
+            CreateWall("Wall_E", new Vector3(h, 0.5f, 0), new Vector3(0.5f, 1f, h * 2f), matWall);
+            CreateWall("Wall_W", new Vector3(-h, 0.5f, 0), new Vector3(0.5f, 1f, h * 2f), matWall);
         }
 
         // GERAÇÃO DE OBSTÁCULOS
@@ -102,6 +134,7 @@ public static class BuildScript
                 float scaleY = Random.Range(genome.obstacles.minScale, genome.obstacles.maxScale);
                 float scaleXZ = Random.Range(genome.obstacles.minScale, genome.obstacles.maxScale);
                 obs.transform.localScale = new Vector3(scaleXZ, scaleY, scaleXZ);
+                obs.GetComponent<Renderer>().material = matWall;
                 GameObjectUtility.SetStaticEditorFlags(obs, StaticEditorFlags.NavigationStatic);
             }
 
@@ -117,15 +150,28 @@ public static class BuildScript
             }
         }
 
-        // AGENTE - CORREÇÕES FÍSICAS AQUI
+        // CORREÇÃO DO AVISO AQUI: Usa a variável no final
+        if (!levelIsValid) {
+            Debug.LogWarning("[BuildScript] Aviso: Caminho perfeito não encontrado. A usar o último gerado.");
+        }
+
+        // AGENTE
         var agentGO = GameObject.CreatePrimitive(PrimitiveType.Capsule);
         agentGO.name = "Agent";
-        agentGO.tag = "Player"; // Fundamental para as moedas detetarem o toque
+        agentGO.tag = "Player";
         agentGO.transform.position = startPos;
+        agentGO.GetComponent<Renderer>().material = matAgent;
 
-        // Adiciona Rigidbody para permitir colisões físicas
+        var trail = agentGO.AddComponent<TrailRenderer>();
+        trail.time = 0.5f;
+        trail.startWidth = 0.5f;
+        trail.endWidth = 0f;
+        trail.material = new Material(Shader.Find("Sprites/Default"));
+        trail.startColor = Color.cyan;
+        trail.endColor = new Color(0, 1, 1, 0);
+
         var rb = agentGO.AddComponent<Rigidbody>();
-        rb.isKinematic = true; // Impede que a física "empurre" o boneco, mas permite detetar colisões
+        rb.isKinematic = true;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
 
         var navAgent = agentGO.AddComponent<NavMeshAgent>();
@@ -140,6 +186,7 @@ public static class BuildScript
         goalGO.name = "Goal";
         goalGO.transform.localScale = Vector3.one * 0.8f;
         goalGO.transform.position = finalGoalPos;
+        goalGO.GetComponent<Renderer>().material = matGoal;
         var goalCol = goalGO.GetComponent<Collider>();
         goalCol.isTrigger = true;
         goalGO.AddComponent<Goal>();
@@ -149,8 +196,6 @@ public static class BuildScript
         var gm = gmGO.AddComponent<GameManager>();
         gm.agent = agentScript;
         gm.goal = goalGO.transform;
-        // Opcional: Arrastar o Prefab da Moeda se tiveres um,
-        // ou o GameManager cria uma esfera primitiva se o slot estiver vazio.
 
         agentScript.goal = goalGO.transform;
 
@@ -167,7 +212,6 @@ public static class BuildScript
 
         if (report.summary.result == BuildResult.Succeeded)
         {
-            // Sincroniza o genoma para a pasta da build
             string destGenome = Path.Combine("Builds", "game_genome.json");
             File.Copy(genomePath, destGenome, true);
         }
@@ -187,12 +231,13 @@ public static class BuildScript
         return new Vector3(halfSize * 0.6f, 0.5f, halfSize * 0.6f);
     }
 
-    static void CreateWall(string name, Vector3 pos, Vector3 size)
+    static void CreateWall(string name, Vector3 pos, Vector3 size, Material mat)
     {
         var w = GameObject.CreatePrimitive(PrimitiveType.Cube);
         w.name = name;
         w.transform.position = pos;
         w.transform.localScale = size;
+        w.GetComponent<Renderer>().material = mat;
         GameObjectUtility.SetStaticEditorFlags(w, StaticEditorFlags.NavigationStatic);
     }
 }

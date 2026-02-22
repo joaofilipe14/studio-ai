@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 import yaml
 from rich import print
 
-from brain.planning import request_plan, extract_first_json_object # <-- NOVA IMPORTAÇÃO
+from brain.planning import request_plan, extract_first_json_object
 from brain.contracts import validate_plan_contract
 from brain.tool_runner import call_tool
 from brain.ollama_client import chat
@@ -41,14 +41,13 @@ def log_jsonl(log_path: str, obj):
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
-# --- FUNÇÃO EVOLUTIVA ATUALIZADA (Suporta Modos de Jogo) ---
+# --- FUNÇÃO EVOLUTIVA ATUALIZADA (Lida com o genoma individual extraído da lista) ---
 def evolve_game_genome(config: dict, metrics: dict, current_genome: dict) -> Optional[dict]:
-    # Detectamos o modo atual para forçar a IA a manter-se nele
     current_mode = current_genome.get("mode", "PointToPoint")
 
     prompt = f"""
         You are an AI Game Evolution Director. 
-        Current Game Genome: {json.dumps(current_genome, indent=2)}
+        Current Game Genome (Mode: {current_mode}): {json.dumps(current_genome, indent=2)}
         Simulation Metrics: {json.dumps(metrics, indent=2)}
         
         STRICT RULES:
@@ -87,7 +86,7 @@ def evolve_game_genome(config: dict, metrics: dict, current_genome: dict) -> Opt
         model=config["ollama"]["model"],
         messages=messages,
         options={
-            "temperature": 0.3, # Ligeiro aumento para permitir criatividade na troca de modos
+            "temperature": 0.3,
             "top_p": 0.9,
             "num_ctx": 4096
         }
@@ -220,7 +219,7 @@ def main():
 
             print("\n[green]Build OK! Starting Simulation...[/green]")
 
-            # --- FASE 3: SIMULAÇÃO E EVOLUÇÃO ---
+            # --- FASE 3: SIMULAÇÃO E EVOLUÇÃO (ATUALIZADA PARA ARRAY) ---
             pn = tool_context.get("project_name", "game_001")
             proj_abs = os.path.abspath(os.path.join("projects", pn))
             exe_path = os.path.join(proj_abs, "Builds", "Game001.exe")
@@ -234,46 +233,80 @@ def main():
                 win_rate = metrics_data.get("win_rate", 0.0)
                 print(f"[cyan]Simulation completed. Metrics:[/cyan]\n{json.dumps(metrics_data, indent=2)}")
 
-                # Ler o genoma atual (se não existir cria um default de base)
-                current_genome = {}
+                # 1. LER O FICHEIRO COMPLETO (Agora é um objeto com {"configs": [...]})
+                full_genome_data = {"configs": []}
                 if os.path.exists(genome_path):
                     with open(genome_path, "r", encoding="utf-8") as f:
-                        current_genome = json.load(f)
-                else:
-                    current_genome = {
-                        "seed": 42,
-                        "arena": {"halfSize": 8.0, "walls": True},
-                        "agent": {"speed": 5.0, "acceleration": 15.0, "stopDistance": 0.5},
-                        "obstacles": {"count": 8, "minScale": 1.0, "maxScale": 2.5},
-                        "rules": {"timeLimit": 20.0, "rounds": 5}
+                        full_genome_data = json.load(f)
+
+                # Se for o formato antigo (sem configs), cria uma lista default
+                if "configs" not in full_genome_data or not isinstance(full_genome_data["configs"], list):
+                    print("[yellow]Aviso: Formato antigo detetado. A converter para Array...[/yellow]")
+                    full_genome_data = {
+                        "configs": [
+                            {
+                                "mode": "PointToPoint",
+                                "seed": 42,
+                                "arena": {"halfSize": 10.0, "walls": True},
+                                "agent": {"speed": 6.0, "acceleration": 12.0, "stopDistance": 0.5},
+                                "obstacles": {"count": 8, "minScale": 1.0, "maxScale": 2.5},
+                                "rules": {"timeLimit": 30.0, "rounds": 5, "targetCount": 1, "enemySpeed": 1.0}
+                            },
+                            {
+                                "mode": "Collect",
+                                "seed": 99,
+                                "arena": {"halfSize": 15.0, "walls": True},
+                                "agent": {"speed": 8.0, "acceleration": 15.0, "stopDistance": 0.5},
+                                "obstacles": {"count": 12, "minScale": 1.0, "maxScale": 1.5},
+                                "rules": {"timeLimit": 45.0, "rounds": 3, "targetCount": 10, "enemySpeed": 0.5}
+                            }
+                        ]
                     }
+
+                # 2. DEFINIR QUAL O MODO A EVOLUIR NESTA RUN
+                # (Como estamos a automatizar o clique para PointToPoint no Unity, evoluímos esse primeiro)
+                target_mode_to_evolve = "PointToPoint"
+
+                current_genome = None
+                genome_index = 0
+                for i, c in enumerate(full_genome_data["configs"]):
+                    if c.get("mode") == target_mode_to_evolve:
+                        current_genome = c
+                        genome_index = i
+                        break
+
+                # Fallback se não encontrar o modo
+                if current_genome is None and len(full_genome_data["configs"]) > 0:
+                    current_genome = full_genome_data["configs"][0]
+                    genome_index = 0
+
                 if 0.6 <= win_rate <= 0.8:
                     hall_of_fame_dir = os.path.join("hall_of_fame")
                     os.makedirs(hall_of_fame_dir, exist_ok=True)
-
                     seed = current_genome.get("seed", "unknown")
                     hof_filename = os.path.join(hall_of_fame_dir, f"genome_seed_{seed}_wr_{win_rate:.2f}.json")
-
                     with open(hof_filename, "w", encoding="utf-8") as hof_file:
-                        json.dump(current_genome, hof_file, indent=2)
-
+                        json.dump(full_genome_data, hof_file, indent=2)
                     print(f"[bold yellow]🏆 HALL OF FAME! Win rate {win_rate} is ideal. Genome saved to {hof_filename}[/bold yellow]")
-                print("\n[magenta]Asking AI Director to EVOLVE the game genome...[/magenta]")
+
+                print(f"\n[magenta]Asking AI Director to EVOLVE the '{current_genome.get('mode')}' genome...[/magenta]")
                 evolved_data = evolve_game_genome(config, metrics_data, current_genome)
 
                 if evolved_data and "new_genome" in evolved_data:
                     new_genome = evolved_data["new_genome"]
-                    # Força uma nova seed para mudar as posições no próximo nível
                     new_genome["seed"] = current_genome.get("seed", 42) + 1
 
-                    # Escreve o novo Genoma por cima do antigo!
-                    call_tool("write_file", {"path": genome_path, "content": json.dumps(new_genome, indent=2)}, config)
+                    # 3. SUBSTITUIR APENAS O GENOMA EVOLUÍDO DENTRO DA LISTA
+                    full_genome_data["configs"][genome_index] = new_genome
+
+                    # Escreve o FICHEIRO INTEIRO de volta!
+                    call_tool("write_file", {"path": genome_path, "content": json.dumps(full_genome_data, indent=2)}, config)
+
                     report_text = evolved_data.get('report', 'No report text provided.')
                     log_evolution_to_db(db_path, metrics_data, new_genome, report_text)
                     print(f"\n[bold magenta]=== AI EVOLUTION REPORT ===[/bold magenta]")
                     print(f"Report: {evolved_data.get('report', 'No report text provided.')}")
-                    print(f"\n[bold green]New Genome Saved to {genome_path}! Next build will use these values:[/bold green]")
-                    print(json.dumps(new_genome, indent=2))
+                    print(f"\n[bold green]New Genome Array Saved! Next build will use these values:[/bold green]")
                 else:
                     print("[red]AI failed to generate a valid JSON genome. Sticking to current version.[/red]")
             else:

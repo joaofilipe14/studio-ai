@@ -14,11 +14,11 @@
 - [x] **Mutação Automática**: A IA (Ollama) atua como "Director", avalia os resultados e reescreve automaticamente o `game_genome.json` para tentar atingir um alvo de dificuldade (ex: 60%-80% de taxa de sucesso).
 
 ## Fase 4 — Diversidade de Conteúdo (Foco Atual) 🚀
-- [ ] **Validação Estrita de Path**: Implementar `NavMesh.CalculatePath` no `BuildScript` para rejeitar/regenerar instantaneamente *seeds* impossíveis (ex: objetivo bloqueado por paredes) antes de compilar o executável.
-- [ ] **Modos de Jogo**: Adicionar suporte a templates como "Maze" (Labirinto denso), "Collect" (Múltiplas Moedas) e "Survival".
-- [ ] **Hall of Fame**: Script Python para arquivar automaticamente os ficheiros `game_genome.json` que geraram os jogos com o melhor equilíbrio (perto do *sweet spot* de 70% win rate).
+- [x] **Validação Estrita de Path**: Implementar `NavMesh.CalculatePath` no `BuildScript` para rejeitar/regenerar instantaneamente *seeds* impossíveis (ex: objetivo bloqueado por paredes) antes de compilar o executável.
+- [x] **Modos de Jogo**: Adicionar suporte a templates como "Maze" (Labirinto denso), "Collect" (Múltiplas Moedas) e "Survival".
+- [x] **Hall of Fame**: Script Python para arquivar automaticamente os ficheiros `game_genome.json` que geraram os jogos com o melhor equilíbrio (perto do *sweet spot* de 70% win rate).
 
 ## Fase 5 — Complexidade Emergente
-- [ ] **Inimigos Dinâmicos**: Introduzir agentes adversários (`ChaserAgents`) com velocidade e contagem controladas pelo genoma.
+- [x] **Inimigos Dinâmicos**: Introduzir agentes adversários (`ChaserAgents`) com velocidade e contagem controladas pelo genoma.
 - [ ] **Power-ups e Condições**: Elementos no mapa que alteram a velocidade do agente ou o tempo limite.
 - [ ] **Curvas de Progressão**: O `game_genome.json` definir um "Modo Campanha" de 10 níveis crescentes, em vez de apenas repetir a mesma ronda.

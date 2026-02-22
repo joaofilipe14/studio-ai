@@ -4,7 +4,5 @@ __pycache__/
 logs/
 backups/
 memory/current_state.json
-projects/**/Library/
-projects/**/Temp/
-projects/**/Obj/
-projects/**/Build/
+projects/
+.idea/

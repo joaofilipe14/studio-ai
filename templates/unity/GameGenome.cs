@@ -21,48 +21,71 @@ public class ObstaclesData {
     public int count = 8;
     public float minScale = 1.0f;
     public float maxScale = 2.5f;
-    public string type = "Static"; // Novo: Para futuros obstáculos móveis ou destrutíveis
+    public string type = "Static";
 }
 
 [Serializable]
 public class RulesData {
     public float timeLimit = 20.0f;
     public int rounds = 5;
-    public int targetCount = 1;    // Novo: Quantidade de moedas/objetivos para o modo Collect
-    public float enemySpeed = 0.0f; // Novo: Para o futuro modo Survival
+    public int targetCount = 1;
+    public float enemySpeed = 0.0f;
 }
 
+// Representa UMA configuração de jogo (Um Modo)
 [Serializable]
 public class GameGenome {
-    public string mode = "PointToPoint"; // Novo: Define o motor de regras ("PointToPoint", "Collect")
+    public string mode = "PointToPoint";
     public int seed = 42;
     public ArenaData arena;
     public AgentData agent;
     public ObstaclesData obstacles;
     public RulesData rules;
 
-    public static GameGenome Load(string path) {
+    public void Validate() {
+        if (arena == null) arena = new ArenaData();
+        if (agent == null) agent = new AgentData();
+        if (obstacles == null) obstacles = new ObstaclesData();
+        if (rules == null) rules = new RulesData();
+    }
+}
+
+// Representa o ficheiro JSON inteiro com a Lista de Modos
+[Serializable]
+public class GameGenomeCollection {
+    public GameGenome[] configs;
+
+    public static GameGenomeCollection Load(string path) {
         if (File.Exists(path)) {
             string json = File.ReadAllText(path);
-            GameGenome loaded = JsonUtility.FromJson<GameGenome>(json);
 
-            // Garantir que as sub-classes não fiquem nulas se o JSON for parcial
-            if (loaded.arena == null) loaded.arena = new ArenaData();
-            if (loaded.agent == null) loaded.agent = new AgentData();
-            if (loaded.obstacles == null) loaded.obstacles = new ObstaclesData();
-            if (loaded.rules == null) loaded.rules = new RulesData();
+            // Tenta ler como um Array (novo formato)
+            GameGenomeCollection collection = JsonUtility.FromJson<GameGenomeCollection>(json);
 
-            Debug.Log($"Genome loaded! Mode: {loaded.mode}, Seed: {loaded.seed}");
-            return loaded;
+            // Fallback: Se o JSON for o antigo (sem array), cria uma lista com 1 elemento
+            if (collection == null || collection.configs == null || collection.configs.Length == 0) {
+                GameGenome single = JsonUtility.FromJson<GameGenome>(json);
+                if (single != null) {
+                    single.Validate();
+                    return new GameGenomeCollection { configs = new GameGenome[] { single } };
+                }
+            } else {
+                foreach(var c in collection.configs) c.Validate();
+                return collection;
+            }
         }
 
         Debug.LogWarning("Genome file not found at " + path + ". Using default values.");
-        return new GameGenome() {
-            mode = "PointToPoint",
-            arena = new ArenaData(),
-            agent = new AgentData(),
-            obstacles = new ObstaclesData(),
-            rules = new RulesData()
-        };
+        var defaultGenome = new GameGenome();
+        defaultGenome.Validate();
+        return new GameGenomeCollection { configs = new GameGenome[] { defaultGenome } };
+    }
+
+    public GameGenome GetConfig(string modeName) {
+        if (configs == null) return null;
+        foreach (var c in configs) {
+            if (c.mode == modeName) return c;
+        }
+        return configs.Length > 0 ? configs[0] : null;
     }
 }

@@ -1,0 +1,1 @@
+using UnityEngine.UI;\npublic class GameManager : MonoBehaviour {\n    // ... rest of the file content
