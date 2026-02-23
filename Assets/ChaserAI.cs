@@ -1,0 +1,1 @@
+using UnityEngine; using System.Collections; public class ChaserAI : MonoBehaviour { void OnAgentCaught(GameManager gameManager) { // implementation } }

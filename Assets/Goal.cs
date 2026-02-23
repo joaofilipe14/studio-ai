@@ -1,0 +1,1 @@
+using UnityEngine;\npublic class Goal : MonoBehaviour {\n    public void OnGoalReached(GameManager manager) {\n        // logic here\n    }\n}

@@ -1,1 +1,1 @@
-using UnityEngine.UI;\npublic class GameManager : MonoBehaviour {\n    // ... rest of the file content
+using UnityEngine; using System.Collections; public class GameManager { // fix collectedInRound property here }

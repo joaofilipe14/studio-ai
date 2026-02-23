@@ -1,0 +1,1 @@
+using UnityEngine;\npublic class HelloFromAI : MonoBehaviour {\n    void Start() {\n        Debug.Log("Hello from AI");\n    }\n}

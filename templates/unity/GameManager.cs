@@ -1,7 +1,6 @@
 using UnityEngine;
-using UnityEngine.AI;
-using System.IO;
 using System.Collections.Generic;
+using System.IO; // Necessário para gravar o ficheiro de métricas
 
 [System.Serializable]
 public class GameMetrics
@@ -16,314 +15,279 @@ public class GameMetrics
 
 public class GameManager : MonoBehaviour
 {
-    public static GameManager Instance;
+    public static GameManager Instance { get; private set; }
+    private GameGenome currentGenome;
 
-    public enum GameState { Menu, Playing, GameOver }
-    private GameState currentState = GameState.Menu;
+    [Header("Configurações de Grelha (BuildScript)")]
+    public int gridWidth = 15;
+    public int gridHeight = 15;
+    public float cellSize = 1f;
+    public int obstacles = 25;
+    public int collectibles = 5;
+    public bool buildBorderWalls = true;
 
-    [Header("Configurações Dinâmicas (Genome)")]
-    private GameGenomeCollection allGenomes; // A LISTA DE MODOS
-    private GameGenome currentGenome;        // O MODO ATIVO
-    private int coinsRemaining = 0;
+    [Header("Regras de Jogo")]
+    public int seed;
+    public float timeLimit = 25f;
+    private float currentTimer; // Timer interno para não gastar a config original
+    public int rounds = 5;
+    private int currentRound = 0; // Contador de rondas atual
+    public bool finished;
+    [Header("Progresso da Ronda")]
+    private int collectedInRound = 0;
 
-    [Header("Inimigos (Fase 5)")]
-    public GameObject enemyPrefab;
-    private List<GameObject> activeEnemies = new List<GameObject>();
+    [Header("Agente e Inimigo")]
+    public float agentMoveSpeed = 4.5f;
+    public bool userControl = false;
+    public bool spawnChaser = true;
+    public float chaserMoveSpeed = 3.5f;
 
-    [Header("Referências")]
-    public SimpleAgent agent;
-    public GameObject coinPrefab;
-    public Transform goal;
-
-    private float timeLeft;
-    private int round = 1;
+    [Header("Métricas Internas")]
     private int winsCount = 0;
     private int timeoutsCount = 0;
     private int stuckCount = 0;
-    private List<float> winTimes = new List<float>();
+    private List<float> winTimes = new List<float>(); // Lista para calcular avg_time_to_goal
 
-    private string hudText = "";
-    private float menuTimer = 0f;
-    private float autoClickDelay = 2.0f;
-    private string autoSelectedMode = "PointToPoint";
+    [Header("Referências")]
+    public GridWorld world;
+    public SimpleAgent agent;
 
-    void Awake()
-    {
+    void Awake() {
         if (Instance == null) Instance = this;
-
-        string genomePath = Path.Combine(Application.dataPath, "..", "game_genome.json");
-        if (!File.Exists(genomePath)) {
-            genomePath = Path.Combine(Directory.GetCurrentDirectory(), "game_genome.json");
-        }
-
-        // CARREGA A LISTA TODA
-        allGenomes = GameGenomeCollection.Load(genomePath);
-
-        if (allGenomes != null && allGenomes.configs != null && allGenomes.configs.Length > 0) {
-            currentGenome = allGenomes.configs[0];
-            autoSelectedMode = currentGenome.mode; // O auto-click vai escolher o primeiro da lista
-        }
+        LoadGenomeConfig();
     }
 
-    void Start()
+    void Start() { StartNewRun(); }
+
+    public void StartNewRun()
     {
-        currentState = GameState.Menu;
+        currentRound++;
+        if (currentRound > rounds) {
+            QuitGame();
+            return;
+        }
+
+        finished = false;
+        collectedInRound = 0;
+        currentTimer = timeLimit; // Reinicia o cronómetro para a nova ronda
+
+        if (world == null) world = gameObject.AddComponent<GridWorld>();
+
+        int activeSeed = (currentGenome.seed == 0) ? (int)System.DateTime.UtcNow.Ticks : currentGenome.seed;
+        float obstacleFill = (float)currentGenome.obstacles.count / (gridWidth * gridHeight);
+        world.Build(gridWidth, gridHeight, cellSize, obstacleFill, seed);
+
+        CleanupScene();
+        BuildFloorAndObstacles();
+        SpawnEntities();
     }
 
-    void Update()
+    void LoadGenomeConfig()
     {
-        if (currentGenome == null) return;
+        // Caminho para o ficheiro JSON (normalmente na pasta do projeto)
+        string path = Path.Combine(Application.dataPath, "..", "game_genome.json");
+        GameGenomeCollection collection = GameGenomeCollection.Load(path);
 
-        if (currentState == GameState.Menu)
-        {
-            menuTimer += Time.deltaTime;
-            if (menuTimer >= autoClickDelay)
-            {
-                Debug.Log($"[UI Agent] A clicar automaticamente no modo: {autoSelectedMode}");
-                StartGame(autoSelectedMode);
-            }
-        }
-        else if (currentState == GameState.Playing)
-        {
-            timeLeft -= Time.deltaTime;
-            UpdateHUDString();
+        // Seleciona o modo (ou o primeiro disponível)
+        currentGenome = collection.configs[0];
 
-            if (timeLeft <= 0f)
-            {
-                timeoutsCount++;
-                NextRound();
-            }
-        }
-    }
+        // Sincroniza as variáveis do GameManager com o Genome
+        timeLimit = currentGenome.rules.timeLimit;
+        rounds = currentGenome.rules.rounds;
+        collectibles = currentGenome.rules.targetCount;
+        agentMoveSpeed = currentGenome.agent.speed;
+        chaserMoveSpeed = currentGenome.rules.enemySpeed;
+        spawnChaser = chaserMoveSpeed > 0;
 
-    void UpdateHUDString()
-    {
-        string modeName = IsCollectMode() ? "Collect (Apanhar Moedas)" : "Point-to-Point (Fuga)";
-        string coinsText = IsCollectMode() ? $"\nMOEDAS RESTANTES: {coinsRemaining}" : "";
-
-        hudText = $"MODO: {modeName}\n" +
-                  $"RONDA: {round} / {currentGenome.rules.rounds}\n" +
-                  $"TEMPO: {Mathf.Max(0, timeLeft):F1}s" +
-                  coinsText;
+        // Ajusta o grid com base no tamanho da arena do Genome
+        gridWidth = (int)(currentGenome.arena.halfSize * 2);
+        gridHeight = (int)(currentGenome.arena.halfSize * 2);
     }
 
     void OnGUI()
-    {
-        if (allGenomes == null || allGenomes.configs == null) return;
-
-        GUIStyle style = new GUIStyle(GUI.skin.label);
-        style.fontSize = 28;
-        style.fontStyle = FontStyle.Bold;
-        style.normal.textColor = Color.cyan;
-
-        if (currentState == GameState.Menu)
         {
-            GUIStyle btnStyle = new GUIStyle(GUI.skin.button);
-            btnStyle.fontSize = 30;
-            btnStyle.fontStyle = FontStyle.Bold;
+            // Cria uma caixa de fundo para as informações
+            GUI.Box(new Rect(10, 10, 250, 110), "ESTADO DA SIMULAÇÃO");
 
-            GUI.Label(new Rect(Screen.width / 2 - 200, Screen.height / 2 - 200, 400, 50), "SELECIONAR MODO DE JOGO", style);
+            GUI.Label(new Rect(20, 35, 230, 25), $"Ronda: {currentRound} / {rounds}");
+            GUI.Label(new Rect(20, 55, 230, 25), $"Tempo: {currentTimer:F1}s");
+            GUI.Label(new Rect(20, 75, 230, 25), $"Moedas: {collectedInRound} / {collectibles}");
+            GUI.Label(new Rect(20, 95, 230, 25), $"Pontos Totais: {winsCount}");
+        }
 
-            // DESENHA OS BOTÕES DINAMICAMENTE COM BASE NO JSON
-            float yPos = Screen.height / 2 - 100;
-            foreach (var config in allGenomes.configs)
+    void BuildFloorAndObstacles()
+    {
+        var floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
+        floor.name = "Floor";
+        floor.GetComponent<Renderer>().material = CreateSimpleMaterial(new Color(0.2f, 0.2f, 0.2f));
+        floor.transform.localScale = new Vector3(gridWidth * cellSize / 10f, 1, gridHeight * cellSize / 10f);
+        floor.transform.position = Vector3.zero;
+
+        Material obsMat = CreateSimpleMaterial(new Color(0.4f, 0.4f, 0.6f));
+        for (int x = 0; x < world.Width; x++)
+        {
+            for (int z = 0; z < world.Height; z++)
             {
-                Rect btnRect = new Rect(Screen.width / 2 - 200, yPos, 400, 80);
-                if (GUI.Button(btnRect, config.mode.ToUpper(), btnStyle))
+                if (world.IsBlocked(new Vector2Int(x, z)))
                 {
-                    StartGame(config.mode);
+                    var obs = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    obs.name = "Obstacle_" + x + "_" + z;
+                    obs.GetComponent<Renderer>().material = obsMat;
+                    obs.transform.position = world.GridToWorld(new Vector2Int(x, z), 0.5f);
                 }
-                yPos += 100; // Espaço para o próximo botão
             }
-
-            GUIStyle agentStyle = new GUIStyle(GUI.skin.label);
-            agentStyle.fontSize = 20;
-            agentStyle.normal.textColor = Color.yellow;
-            float timeRemaining = Mathf.Max(0, autoClickDelay - menuTimer);
-            GUI.Label(new Rect(Screen.width / 2 - 200, yPos + 50, 400, 50),
-                $"UI Agent a auto-selecionar ({autoSelectedMode}) em {timeRemaining:F1}s...", agentStyle);
-        }
-        else if (currentState == GameState.Playing)
-        {
-            GUI.Label(new Rect(20, 20, 600, 200), hudText, style);
         }
     }
 
-    public void StartGame(string selectedMode)
+    void SpawnEntities()
     {
-        if (currentState != GameState.Menu) return;
+        System.Random rng = new System.Random(seed);
+        Vector2Int start = world.RandomFreeCell(rng);
 
-        // VAI BUSCAR AS REGRAS ESPECÍFICAS DESTE MODO
-        currentGenome = allGenomes.GetConfig(selectedMode);
-        currentState = GameState.Playing;
-        StartRound(round);
-    }
+        GameObject agentGO = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        agentGO.GetComponent<Renderer>().material = CreateSimpleMaterial(Color.green);
+        agentGO.name = "Agent";
+        agent = agentGO.AddComponent<SimpleAgent>();
+        agent.world = world;
+        agent.gridPos = start;
+        agentGO.transform.position = world.GridToWorld(start);
 
-    public bool IsCollectMode() => currentGenome != null && currentGenome.mode == "Collect";
-
-    public void OnCollectiblePickedUp()
-    {
-        coinsRemaining--;
-        if (coinsRemaining <= 0) Win();
-    }
-
-    public void Win()
-    {
-        float timeTaken = currentGenome.rules.timeLimit - timeLeft;
-        winsCount++;
-        winTimes.Add(timeTaken);
-        NextRound();
-    }
-
-    public void NotifyStuck()
-    {
-        stuckCount++;
-        NextRound();
-    }
-
-    void NextRound()
-    {
-        round++;
-        if (round > currentGenome.rules.rounds)
-            ExportMetricsAndQuit();
-        else
-            StartRound(round);
-    }
-
-    void StartRound(int r)
-    {
-        timeLeft = currentGenome.rules.timeLimit;
-
-        foreach (var c in GameObject.FindGameObjectsWithTag("Collectible")) Destroy(c);
-
-        if (IsCollectMode())
+        if (spawnChaser)
         {
-            if (goal != null) goal.gameObject.SetActive(false);
-            coinsRemaining = currentGenome.rules.targetCount;
-            SpawnCollectibles(coinsRemaining);
+            Vector2Int chaserStart = world.RandomFreeCell(rng);
+            GameObject chaserGO = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            chaserGO.name = "Chaser";
+
+            // Define a cor vermelha para o perseguidor
+            chaserGO.GetComponent<Renderer>().material = CreateSimpleMaterial(Color.red);
+
+            ChaserAI ai = chaserGO.AddComponent<ChaserAI>();
+            ai.world = world;
+            ai.gridPos = chaserStart;
+            ai.moveSpeed = chaserMoveSpeed; // Usa a velocidade definida no BuildScript
+            chaserGO.transform.position = world.GridToWorld(chaserStart);
         }
-        else
+
+        SpawnCollectible(rng);
+    }
+
+    void SpawnCollectible(System.Random rng)
+    {
+        Vector2Int p = world.RandomFreeCell(rng);
+        GameObject coin = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        coin.name = "Collectible";
+        coin.tag = "Collectible";
+        coin.transform.position = world.GridToWorld(p, 0.3f);
+        coin.transform.localScale = Vector3.one * 0.5f;
+        coin.GetComponent<Renderer>().material.color = Color.yellow;
+        coin.AddComponent<Collectible>().gridPos = p;
+    }
+
+    Material CreateSimpleMaterial(Color color)
+    {
+        Shader safetyShader = Shader.Find("Unlit/Color");
+        if (safetyShader == null) safetyShader = Shader.Find("Legacy Shaders/VertexLit");
+        Material mat = new Material(safetyShader);
+        mat.color = color;
+        return mat;
+    }
+
+    void Update() {
+        if (finished) return;
+        currentTimer -= Time.deltaTime; // Atualiza o cronómetro da ronda
+        if (currentTimer <= 0) {
+            currentTimer = 0;
+            Lose("TEMPO ESGOTADO");
+        }
+    }
+
+    public void OnGoalReached()
+    {
+        if (finished) return;
+        finished = true;
+
+        winsCount++; // Métrica de vitória
+        winTimes.Add(timeLimit - currentTimer); // Regista o tempo gasto para chegar ao objetivo
+
+        Debug.Log("Objetivo alcançado! Vitória.");
+        Invoke("StartNewRun", 1.0f);
+    }
+
+    public void OnAgentCaught() {
+        stuckCount++; // Se for apanhado ou ficar preso, conta como stuck_event
+        StartNewRun();
+    }
+
+    void Lose(string reason) {
+        if (finished) return;
+        finished = true;
+
+        timeoutsCount++; // Métrica de timeout
+        Debug.Log(reason);
+        Invoke("StartNewRun", 1.0f);
+    }
+
+    void CleanupScene()
+    {
+        foreach (var obj in GameObject.FindGameObjectsWithTag("Collectible")) Destroy(obj);
+        GameObject[] allObjects = Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None);
+        foreach (var o in allObjects)
         {
-            if (goal != null)
+            if (o.name.StartsWith("Obstacle_") || o.name == "Floor" || o.name == "Agent" || o.name == "Goal")
             {
-                goal.gameObject.SetActive(true);
-                goal.position = GetValidNavMeshPoint(currentGenome.arena.halfSize);
+                Destroy(o);
             }
-            coinsRemaining = 1;
-        }
-
-        if (currentGenome.rules.enemySpeed > 0)
-        {
-            SpawnEnemies(currentGenome.rules.targetCount / 2 + 1);
-        }
-
-        if (agent != null)
-        {
-            agent.ResetAgent(new Vector3(0, 1f, 0), goal);
-            agent.Configure(currentGenome.agent, goal);
         }
     }
 
-    void SpawnEnemies(int count)
-    {
-        foreach (var e in activeEnemies) if (e != null) Destroy(e);
-        activeEnemies.Clear();
-
-        for (int i = 0; i < count; i++)
+    public void OnCollect(Vector2Int p)
         {
-            Vector3 pos = GetValidNavMeshPoint(currentGenome.arena.halfSize);
-            GameObject enemy = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            enemy.name = "ChaserEnemy";
-            enemy.GetComponent<BoxCollider>().isTrigger = true;
-            enemy.transform.position = pos;
+            if (finished) return;
 
-            var mat = enemy.GetComponent<Renderer>().material;
-            mat.color = Color.red;
-            mat.EnableKeyword("_EMISSION");
-            mat.SetColor("_EmissionColor", Color.red * 2.5f);
+            collectedInRound++;
+            Debug.Log($"Moeda coletada! ({collectedInRound}/{collectibles})");
 
-            Rigidbody rb = enemy.AddComponent<Rigidbody>();
-            rb.isKinematic = true;
-
-            var nav = enemy.AddComponent<NavMeshAgent>();
-            nav.speed = currentGenome.rules.enemySpeed;
-
-            var ai = enemy.AddComponent<ChaserAI>();
-            ai.target = agent.transform;
-
-            activeEnemies.Add(enemy);
-        }
-    }
-
-    void SpawnCollectibles(int count)
-    {
-        for (int i = 0; i < count; i++)
-        {
-            Vector3 pos = GetValidNavMeshPoint(currentGenome.arena.halfSize);
-            GameObject coin;
-
-            if (coinPrefab != null) {
-                coin = Instantiate(coinPrefab, pos, Quaternion.identity);
-            } else {
-                coin = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                coin.transform.position = pos;
-                coin.transform.localScale = Vector3.one * 0.6f;
-
-                var mat = coin.GetComponent<Renderer>().material;
-                mat.color = Color.yellow;
-                mat.EnableKeyword("_EMISSION");
-                mat.SetColor("_EmissionColor", Color.yellow * 2.5f);
-            }
-
-            coin.tag = "Collectible";
-            var col = coin.GetComponent<Collider>();
-            if (col != null) col.isTrigger = true;
-
-            if (coin.GetComponent<Collectible>() == null)
-                coin.AddComponent<Collectible>();
-        }
-    }
-
-    Vector3 GetValidNavMeshPoint(float halfSize)
-    {
-        for (int i = 0; i < 50; i++)
-        {
-            float x = Random.Range(-halfSize + 1.5f, halfSize - 1.5f);
-            float z = Random.Range(-halfSize + 1.5f, halfSize - 1.5f);
-            Vector3 randomPos = new Vector3(x, 0.5f, z);
-
-            if (NavMesh.SamplePosition(randomPos, out NavMeshHit hit, 2.0f, NavMesh.AllAreas))
+            // Se ainda não apanhámos todas as moedas desta ronda
+            if (collectedInRound < collectibles)
             {
-                return hit.position;
+                // Spawnamos a próxima moeda
+                System.Random rng = new System.Random((int)System.DateTime.UtcNow.Ticks + collectedInRound);
+                SpawnCollectible(rng);
+            }
+            else
+            {
+                // Se já apanhámos todas, ganhámos a ronda!
+                OnGoalReached();
             }
         }
-        return new Vector3(0, 0.5f, 0);
-    }
 
-    void ExportMetricsAndQuit()
+    void QuitGame()
     {
+        // Cálculo final das métricas antes de sair
         GameMetrics metrics = new GameMetrics {
-            total_rounds = currentGenome.rules.rounds,
+            total_rounds = rounds,
             wins = winsCount,
             timeouts = timeoutsCount,
             stuck_events = stuckCount,
-            win_rate = (float)winsCount / currentGenome.rules.rounds
+            win_rate = rounds > 0 ? (float)winsCount / rounds : 0f
         };
 
         float sumTime = 0f;
         foreach (float t in winTimes) sumTime += t;
         metrics.avg_time_to_goal = winsCount > 0 ? (sumTime / winsCount) : 0f;
 
+        // Gravação do ficheiro JSON na raiz do projeto
         string json = JsonUtility.ToJson(metrics, true);
-        File.WriteAllText(Path.Combine(Application.dataPath, "..", "metrics.json"), json);
+        string path = Path.Combine(Application.dataPath, "..", "metrics.json");
+        File.WriteAllText(path, json);
 
-        Debug.Log("Simulação concluída. Métricas exportadas.");
+        Debug.Log($"Simulação concluída. Métricas exportadas para: {path}");
 
-#if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
-#else
-        Application.Quit(0);
-        System.Diagnostics.Process.GetCurrentProcess().Kill();
-#endif
+        #if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+        #else
+            Application.Quit(0);
+            System.Diagnostics.Process.GetCurrentProcess().Kill(); // Garante o fecho imediato em batch mode
+        #endif
     }
 }

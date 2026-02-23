@@ -1,0 +1,1 @@
+using UnityEngine;\nusing UnityEditor;\npublic class BuildScript {\n    public static void MakeBuild() {\n        // build logic here\n    }\n}

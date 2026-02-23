@@ -1,9 +1,1 @@
-using UnityEngine;
-
-public class SimpleAgent : MonoBehaviour
-{
-    public void Configure(float speed, float stoppingDist)
-    {
-        // implementation
-    }
-}
+using UnityEngine;\npublic class SimpleAgent : MonoBehaviour {\n    public void Update() {\n        // implementation here\n    }\n}\n

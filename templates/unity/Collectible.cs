@@ -2,22 +2,21 @@ using UnityEngine;
 
 public class Collectible : MonoBehaviour
 {
-    private void OnTriggerEnter(Collider other)
+    // Armazena a posição lógica na grelha
+    public Vector2Int gridPos;
+
+    void Update()
     {
-        // Verifica se quem tocou na moeda foi o Agente
-        // Nota: Garante que o teu Prefab do Agente tem a Tag "Player"
-        if (other.CompareTag("Player") || other.gameObject.name == "Agent")
+        // Segurança: verifica se o GameManager e o Agente estão ativos
+        if (GameManager.Instance == null || GameManager.Instance.agent == null) return;
+
+        // Compara a posição do agente com a posição desta moeda
+        if (GameManager.Instance.agent.gridPos == gridPos)
         {
-            // Avisa o GameManager que uma moeda foi coletada
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.OnCollectiblePickedUp();
+            // Notifica o Manager para aumentar a pontuação e gerar nova moeda
+            GameManager.Instance.OnCollect(gridPos);
 
-                // Feedback visual opcional no console
-                Debug.Log("Item coletado!");
-            }
-
-            // Destrói a moeda para que não possa ser coletada duas vezes
+            // Remove o objeto da cena
             Destroy(gameObject);
         }
     }

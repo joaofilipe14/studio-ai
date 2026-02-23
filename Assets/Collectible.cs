@@ -1,0 +1,1 @@
+using UnityEngine;\npublic class Collectible : MonoBehaviour {\n    public void OnCollectiblePickedUp(GameManager gameManager) {\n        // logic here\n    }\n}
