@@ -1,1 +1,1 @@
-using UnityEngine;\npublic class Goal : MonoBehaviour {\n    public void OnGoalReached(GameManager manager) {\n        // logic here\n    }\n}
+using UnityEngine;\npublic class Goal : MonoBehaviour {\n    private GameManager gameManager;\n    void Start() {\n        gameManager = GameObject.FindObjectOfType<GameManager>();\n    }\n}

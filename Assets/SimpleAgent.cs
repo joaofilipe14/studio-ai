@@ -1,1 +1,1 @@
-using UnityEngine;\npublic class SimpleAgent : MonoBehaviour {\n    public void Update() {\n        // implementation here\n    }\n}\n
+using UnityEngine;\npublic class SimpleAgent : MonoBehaviour {\n    private GameManager gameManager;\n    void Start() {\n        gameManager = GameObject.FindObjectOfType<GameManager>();\n    }\n}

@@ -57,7 +57,10 @@ public class GameManager : MonoBehaviour
         LoadGenomeConfig();
     }
 
-    void Start() { StartNewRun(); }
+    void Start() {
+        StartNewRun();
+        SetupAudio();
+    }
 
     public void StartNewRun()
     {
@@ -80,6 +83,16 @@ public class GameManager : MonoBehaviour
         CleanupScene();
         BuildFloorAndObstacles();
         SpawnEntities();
+    }
+
+    void SetupAudio() {
+        GameObject musicObj = new GameObject("BackgroundMusic");
+        AudioSource source = musicObj.AddComponent<AudioSource>();
+        source.clip = Resources.Load<AudioClip>("Music/synthwave_loop");
+        source.loop = true;
+        source.playOnAwake = true;
+        source.volume = 0.5f;
+        source.Play();
     }
 
     void LoadGenomeConfig()

@@ -1,1 +1,1 @@
-using UnityEngine; using System.Collections; public class ChaserAI : MonoBehaviour { void OnAgentCaught(GameManager gameManager) { // implementation } }
+using UnityEngine;\npublic class ChaserAI : MonoBehaviour {\n    private GameManager gameManager;\n    void Start() {\n        gameManager = GameObject.FindObjectOfType<GameManager>();\n    }\n}

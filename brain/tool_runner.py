@@ -158,10 +158,12 @@ def call_tool(
                 proj_abs = os.path.abspath(proj)
                 assets_dir = os.path.join(proj_abs, "Assets")
                 editor_dir = os.path.join(assets_dir, "Editor")
+                music_dir = os.path.join(assets_dir, "Resources", "Music")
                 builds_dir = os.path.join(proj_abs, "Builds")
 
                 _ensure_dir(assets_dir)
                 _ensure_dir(editor_dir)
+                _ensure_dir(music_dir)
                 _ensure_dir(builds_dir)
 
                 # 1. Sincronização do Genome (FIX: Injeta se não houver no Build)
@@ -197,6 +199,18 @@ def call_tool(
                 except Exception as e:
                     print(f"[ERRO] Falha ao injetar genoma: {e}")
 
+                music_src = os.path.join("templates", "music", "synthwave_loop.wav")
+                music_dst = os.path.join(music_dir, "synthwave_loop.wav")
+
+                try:
+                    if os.path.exists(music_src):
+                        import shutil
+                        shutil.copy2(music_src, music_dst)
+                        print(f"[DEBUG] Música injetada em: {music_dst}")
+                    else:
+                        print(f"[AVISO] Ficheiro de música não encontrado em: {music_src}")
+                except Exception as e:
+                    print(f"[ERRO] Falha ao copiar música: {e}")
                 # 2. Injeção de Scripts
                 preflight_files = [
                     (os.path.join(assets_dir, "Rotator.cs"), "Rotator.cs"),
