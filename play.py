@@ -19,12 +19,11 @@ def launch_manual_test():
         print(f"Erro ao ler JSON: {e}")
         return
 
-    # 2. Ativa o controlo manual com segurança (usa .get para evitar KeyError)
-    if "agent" not in genome: genome["agent"] = {}
-    genome["agent"]["userControl"] = True
+    genome["userControl"] = True
 
     # Garante que o modo existe no log
     current_mode = genome.get("mode", "PointToPoint")
+    #current_mode = genome.get("mode", "Collect")
 
     # Garante que as regras existem antes de alterar o tempo
     if "rules" in genome:

@@ -2,16 +2,17 @@ using UnityEngine;
 
 public class Goal : MonoBehaviour
 {
-    private void OnTriggerEnter(Collider other)
-    {
-        // Tenta obter o script do agente para confirmar quem colidiu
-        SimpleAgent agent = other.GetComponent<SimpleAgent>();
+    public Vector2Int gridPos;
 
-        // Verifica se o agente é válido e se o GameManager existe
-        if (agent != null && GameManager.Instance != null)
+    void Update()
+    {
+        if (GameManager.Instance == null || GameManager.Instance.agent == null) return;
+
+        // Se o Agente pisar a mesma célula que o Goal, ganha imediatamente!
+        if (GameManager.Instance.agent.gridPos == gridPos)
         {
-            // Chama a função de vitória no GameManager
             GameManager.Instance.OnGoalReached();
+            Destroy(gameObject);
         }
     }
 }

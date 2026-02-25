@@ -8,8 +8,7 @@ from typing import Any, Dict, Optional
 import yaml
 from rich import print
 
-from brain.planning import request_plan, extract_first_json_object
-from brain.contracts import validate_plan_contract
+from brain.planning import extract_first_json_object
 from brain.tool_runner import call_tool
 from brain.ollama_client import chat
 from db.evolution_logger import init_db, log_evolution_to_db
@@ -45,34 +44,58 @@ def log_jsonl(log_path: str, obj):
 def evolve_game_genome(config: dict, metrics: dict, current_genome: dict) -> Optional[dict]:
     current_mode = current_genome.get("mode", "PointToPoint")
 
+    # Extraímos as novas métricas enviadas pelo Unity
+    win_rate = metrics.get("win_rate", 0.0)
+    total_collected = metrics.get("total_collected", 0)
+    target_count = current_genome.get("rules", {}).get("targetCount", 1)
+    total_rounds = metrics.get("total_rounds", 1)
+
+    # Cálculo de eficiência para o modo Collect
+    collect_efficiency = (total_collected / (target_count * total_rounds)) if target_count > 0 else 0
+
     prompt = f"""
-        You are an AI Game Evolution Director. 
-        Current Game Genome (Mode: {current_mode}): {json.dumps(current_genome, indent=2)}
-        Simulation Metrics: {json.dumps(metrics, indent=2)}
+        You are an AI Game Evolution Director.
         
-        STRICT RULES:
-        1. You MUST keep the "mode" as "{current_mode}". Do not change it.
-        2. Your goal is to reach a win_rate between 0.6 and 0.8 (The Sweet Spot).
-        3. If introducing or increasing "enemySpeed", you MUST ensure "timeLimit" is sufficient to allow for evasion maneuvers.
+        CURRENT CONFIGURATION:
+        - Mode: {current_mode}
+        - Genome: {json.dumps(current_genome, indent=2)}
         
-        ANALYSIS GUIDELINES:
-        - If win_rate < 0.6 (Too Hard): 
-            * Decrease "enemySpeed".
-            * Increase "timeLimit".
-            * Decrease "obstacles.count" or "targetCount".
-        - If win_rate > 0.8 (Too Easy): 
-            * Increase "enemySpeed" (current target: 2.0).
+        LATEST SIMULATION METRICS:
+        - Win Rate: {win_rate:.2f}
+        - Total Collected Items: {total_collected}
+        - Collection Efficiency: {collect_efficiency:.2f} (Items collected vs total possible)
+        - Stuck Events: {metrics.get("stuck_events", 0)}
+        - Timeouts: {metrics.get("timeouts", 0)}
+
+        STRICT EVOLUTION RULES:
+        1. Keep "mode" as "{current_mode}".
+        2. Target Win Rate: 0.6 - 0.8 (The Sweet Spot).
+        1. IF Win Rate is 1.0: The game is BORING. You MUST make it significantly HARDER.
+           - Increase "enemySpeed".
+           - Decrease "timeLimit".
+           - Increase "obstacles.count" or "trapChance".
+       2. IF Win Rate is low (< 0.6): The game is FRUSTRATING. Make it EASIER.
+           - Decrease "enemySpeed".
+           - Increase "powerUpChance".
+        3. Obstacle Scaling: Use "minScale" and "maxScale" to control map density. 
+           Higher scales create larger walls/mazes, increasing difficulty.
+        
+        STRATEGY GUIDELINES:
+        - IF Win Rate < 0.6 (Too Hard):
+            * If timeouts > 0: Increase "timeLimit".
+            * If Collection Efficiency > 0.7: The game is balanced but tight; just add a little more time.
+            * If Stuck Events are high: Decrease "obstacles.count" or "maxScale".
+            * If agent is caught too often: Decrease "enemySpeed".
+        - IF Win Rate > 0.8 (Too Easy):
+            * Increase "enemySpeed" (User wants target 2.0).
+            * Increase "obstacles.count" or "maxScale" to create tighter corridors.
             * Decrease "timeLimit".
-            * Increase "obstacles.count" or scale.
-        
-        INTEGRATION TASK:
-        The user wants a challenge with an enemy speed of 2.0. If the current win_rate allows, 
-        set "enemySpeed" to 2.0 and balance the "timeLimit" and "agent.speed" so the agent 
-        can still complete the objective while being chased.
-        
-        Return ONLY JSON:
+
+        OUTPUT TASK:
+        IMPORTANT: Return ONLY raw JSON. DO NOT include comments like // or any explanatory text inside the JSON structure.
+        Balance the game for {current_mode}. Return ONLY a JSON object with:
         {{
-          "report": "Brief explanation of your balancing strategy",
+          "report": "Analysis of metrics and changes made",
           "new_genome": {{ ... }}
         }}
     """
@@ -92,237 +115,157 @@ def evolve_game_genome(config: dict, metrics: dict, current_genome: dict) -> Opt
         }
     )
     content = resp["message"]["content"]
+    print(f"Change game IA response: {content}")
     return extract_first_json_object(content)
+
 
 def main():
     config = load_yaml("config.yaml")
     state_path = config["paths"]["state"]
-    log_path = os.path.join(config["paths"]["logs"], f"run-{now_id()}.jsonl")
-
     db_path = os.path.join(config["paths"]["logs"], "evolution.db")
     init_db(db_path)
 
-    system_prompt = read_prompt("prompts/system.md")
-    planner_obj = json.loads(read_prompt("prompts/plan.json"))
-
-    allowed_tools = set(planner_obj.get("constraints", {}).get("allowed_tools", []))
-    forbidden_tools = set(planner_obj.get("constraints", {}).get("forbidden_tools", []))
-
     state = load_state(state_path)
 
-    env = call_tool("env_info", {}, config)
-    log_jsonl(log_path, {"event": "env_info", "result": env})
-    if not env["ok"]:
-        print(f"[red]env_info failed:[/red] {env['output']}")
-        return
-    env_data = env.get("data") or {}
+    print("[cyan]A inicializar o AI Director (Static Workflow Bypass)...[/cyan]")
 
-    goal = (
-        "Create a Unity project called game_001 inside projects/game_001. "
-        "Steps required: "
-        "1) Find Unity Editor using find_unity_editor. "
-        "2) Create the project using unity_create_project. "
-        "3) Create folder Assets/Editor if missing. "
-        "4) Write two C# files: Assets/HelloFromAI.cs and Assets/Editor/BuildScript.cs. "
-        "5) Execute headless build using unity_run_execute_method with method BuildScript.MakeBuild. "
-        "Do not create snapshots. Return only a JSON plan."
-        "Write full compilable C# contents."
-    )
-    state["goal"] = goal
+    # 1. DEFINIÇÃO DE CAMINHOS
+    pn = "game_001"
+    proj_abs = os.path.abspath(os.path.join("projects", pn))
+    exe_path = os.path.join(proj_abs, "Builds", "Game001.exe")
+    metrics_path = os.path.join(proj_abs, "Builds", "metrics.json")
+    genome_path = os.path.join(proj_abs, "Builds", "game_genome.json")
 
-    max_replans = int(config.get("run", {}).get("max_replans", 2))
-    attempt = 0
-    last_plan_raw: Optional[str] = None
-    last_error: Optional[str] = None
+    # Variável de contexto para as tools saberem onde trabalhar
+    tool_context = {
+        "project_name": pn,
+        "project_path": proj_abs
+    }
 
-    while attempt <= max_replans:
-        if attempt == 0:
-            print("[cyan]Planning...[/cyan]")
-        else:
-            print(f"[yellow]Replanning (attempt {attempt}/{max_replans})...[/yellow] Reason: {last_error}")
+    # 2. BYPASS / SETUP DO PROJETO E BUILD (ESTÁTICO)
+    if not os.path.exists(exe_path):
+        print(f"[yellow]Build não encontrada em {exe_path}. A iniciar Setup Inicial...[/yellow]")
 
-        plan, plan_raw = request_plan(
-            config=config,
-            system_prompt=system_prompt,
-            planner_obj=planner_obj,
-            env_data=env_data,
-            goal=goal,
-            log_jsonl=log_jsonl,
-            log_path=log_path,
-            previous_error=last_error,
-            previous_plan_raw=last_plan_raw,
-        )
-        last_plan_raw = plan_raw
+        # Passo A: Encontrar o Unity
+        res_unity = call_tool("find_unity_editor", {}, config, tool_context=tool_context)
+        if res_unity.get("ok") and res_unity.get("data"):
+            tool_context["unity_path"] = res_unity["data"].get("unity_path")
 
-        if not plan or "steps" not in plan:
-            last_error = "LLM did not return a usable JSON plan"
-            attempt += 1
-            continue
-
-        ok, reason = validate_plan_contract(plan, allowed_tools, forbidden_tools)
-        if not ok:
-            last_error = f"Plan violates contract: {reason}"
-            attempt += 1
-            continue
-
-        print("[green]Plan accepted. Executing steps...[/green]")
-
-        tool_context: Dict[str, Any] = {}
-        all_ok = True
-        failure_reason: Optional[str] = None
-        wrote_cs = False
-        build_succeeded = False
-        last_build_args: Optional[Dict[str, Any]] = None
-
-        for step in plan["steps"]:
-            for tc in step.get("tool_calls", []):
-                tname = tc.get("tool")
-                args = tc.get("args", {}) or {}
-
-                out = call_tool(tname, args, config, env_data=env_data, tool_context=tool_context)
-
-                if tname == "write_file" and (args.get("path") or "").replace("\\", "/").lower().endswith(".cs"):
-                    wrote_cs = True
-
-                if tname == "unity_run_execute_method":
-                    last_build_args = dict(args)
-                    if out.get("ok"):
-                        build_succeeded = True
-
-                if tname == "find_unity_editor" and out.get("ok") and out.get("data"):
-                    if out["data"].get("unity_path"): tool_context["unity_path"] = out["data"]["unity_path"]
-
-                if tname == "unity_create_project" and out.get("ok"):
-                    if args.get("project_name"): tool_context["project_name"] = args["project_name"]
-                    if args.get("project_path"): tool_context["project_path"] = args["project_path"]
-
-                if not out["ok"]:
-                    all_ok = False
-                    failure_reason = f"Tool failed: {tname} -> {out.get('output')}"
-                    print(f"[red]{failure_reason}[/red]")
-                    break
-            if not all_ok: break
-
-        if all_ok:
-            if wrote_cs and not build_succeeded:
-                retry_args = dict(last_build_args or {})
-                retry_args.setdefault("method", "BuildScript.MakeBuild")
-                if tool_context.get("unity_path") and not retry_args.get("unity_path"): retry_args["unity_path"] = tool_context["unity_path"]
-                if tool_context.get("project_path") and not retry_args.get("project_path"): retry_args["project_path"] = tool_context["project_path"]
-                retry_args["log_file"] = os.path.join("logs", "unity-build-retry.log")
-
-                retry = call_tool("unity_run_execute_method", retry_args, config, env_data=env_data, tool_context=tool_context)
-                if not retry.get("ok"):
-                    last_error = f"Build retry failed -> {retry.get('output')}"
-                    attempt += 1
-                    continue
-
-            print("\n[green]Build OK! Starting Simulation...[/green]")
-
-            # --- FASE 3: SIMULAÇÃO E EVOLUÇÃO (ATUALIZADA PARA ARRAY) ---
-            pn = tool_context.get("project_name", "game_001")
-            proj_abs = os.path.abspath(os.path.join("projects", pn))
-            exe_path = os.path.join(proj_abs, "Builds", "Game001.exe")
-            metrics_path = os.path.join(proj_abs, "Builds", "metrics.json")
-            genome_path = os.path.join(proj_abs, "Builds", "game_genome.json")
-
-            sim_res = call_tool("run_game_simulation", {"exe_path": exe_path, "metrics_path": metrics_path}, config)
-
-            if sim_res.get("ok"):
-                metrics_data = sim_res["data"]["metrics"]
-                win_rate = metrics_data.get("win_rate", 0.0)
-                print(f"[cyan]Simulation completed. Metrics:[/cyan]\n{json.dumps(metrics_data, indent=2)}")
-
-                # 1. LER O FICHEIRO COMPLETO (Agora é um objeto com {"configs": [...]})
-                full_genome_data = {"configs": []}
-                if os.path.exists(genome_path):
-                    with open(genome_path, "r", encoding="utf-8") as f:
-                        full_genome_data = json.load(f)
-
-                # Se for o formato antigo (sem configs), cria uma lista default
-                if "configs" not in full_genome_data or not isinstance(full_genome_data["configs"], list):
-                    print("[yellow]Aviso: Formato antigo detetado. A converter para Array...[/yellow]")
-                    full_genome_data = {
-                        "configs": [
-                            {
-                                "mode": "PointToPoint",
-                                "seed": 42,
-                                "arena": {"halfSize": 10.0, "walls": True},
-                                "agent": {"speed": 6.0, "acceleration": 12.0, "stopDistance": 0.5},
-                                "obstacles": {"count": 8, "minScale": 1.0, "maxScale": 2.5},
-                                "rules": {"timeLimit": 30.0, "rounds": 5, "targetCount": 1, "enemySpeed": 1.0}
-                            },
-                            {
-                                "mode": "Collect",
-                                "seed": 99,
-                                "arena": {"halfSize": 15.0, "walls": True},
-                                "agent": {"speed": 8.0, "acceleration": 15.0, "stopDistance": 0.5},
-                                "obstacles": {"count": 12, "minScale": 1.0, "maxScale": 1.5},
-                                "rules": {"timeLimit": 45.0, "rounds": 3, "targetCount": 10, "enemySpeed": 0.5}
-                            }
-                        ]
-                    }
-
-                # 2. DEFINIR QUAL O MODO A EVOLUIR NESTA RUN
-                # (Como estamos a automatizar o clique para PointToPoint no Unity, evoluímos esse primeiro)
-                target_mode_to_evolve = "PointToPoint"
-
-                current_genome = None
-                genome_index = 0
-                for i, c in enumerate(full_genome_data["configs"]):
-                    if c.get("mode") == target_mode_to_evolve:
-                        current_genome = c
-                        genome_index = i
-                        break
-
-                # Fallback se não encontrar o modo
-                if current_genome is None and len(full_genome_data["configs"]) > 0:
-                    current_genome = full_genome_data["configs"][0]
-                    genome_index = 0
-
-                if 0.6 <= win_rate <= 0.8:
-                    hall_of_fame_dir = os.path.join("hall_of_fame")
-                    os.makedirs(hall_of_fame_dir, exist_ok=True)
-                    seed = current_genome.get("seed", "unknown")
-                    hof_filename = os.path.join(hall_of_fame_dir, f"genome_seed_{seed}_wr_{win_rate:.2f}.json")
-                    with open(hof_filename, "w", encoding="utf-8") as hof_file:
-                        json.dump(full_genome_data, hof_file, indent=2)
-                    print(f"[bold yellow]🏆 HALL OF FAME! Win rate {win_rate} is ideal. Genome saved to {hof_filename}[/bold yellow]")
-
-                print(f"\n[magenta]Asking AI Director to EVOLVE the '{current_genome.get('mode')}' genome...[/magenta]")
-                evolved_data = evolve_game_genome(config, metrics_data, current_genome)
-
-                if evolved_data and "new_genome" in evolved_data:
-                    new_genome = evolved_data["new_genome"]
-                    new_genome["seed"] = current_genome.get("seed", 42) + 1
-
-                    # 3. SUBSTITUIR APENAS O GENOMA EVOLUÍDO DENTRO DA LISTA
-                    full_genome_data["configs"][genome_index] = new_genome
-
-                    # Escreve o FICHEIRO INTEIRO de volta!
-                    call_tool("write_file", {"path": genome_path, "content": json.dumps(full_genome_data, indent=2)}, config)
-
-                    report_text = evolved_data.get('report', 'No report text provided.')
-                    log_evolution_to_db(db_path, metrics_data, new_genome, report_text)
-                    print(f"\n[bold magenta]=== AI EVOLUTION REPORT ===[/bold magenta]")
-                    print(f"Report: {evolved_data.get('report', 'No report text provided.')}")
-                    print(f"\n[bold green]New Genome Array Saved! Next build will use these values:[/bold green]")
-                else:
-                    print("[red]AI failed to generate a valid JSON genome. Sticking to current version.[/red]")
-            else:
-                print(f"[yellow]Simulation failed to run or export metrics: {sim_res.get('output')}[/yellow]")
-            # ------------------------------------------------
-
-            state["last_result"] = "ok"
-            state["history"].append({"ts": now_id(), "result": "ok"})
-            save_state(state_path, state)
+        # Passo B: Criar o Projeto Unity
+        res_create = call_tool("unity_create_project", {"project_name": pn}, config, tool_context=tool_context)
+        if not res_create.get("ok"):
+            print(f"[red]Erro ao criar o projeto: {res_create.get('output')}[/red]")
             return
 
-        last_error = failure_reason or "Execution failed"
-        attempt += 1
+        # Passo C: Fazer a Build (Isto aciona o PREFLIGHT no tool_runner.py que copia os Templates!)
+        print("[yellow]A compilar o Unity (isto pode demorar alguns minutos)...[/yellow]")
+        res_build = call_tool("unity_run_execute_method", {
+            "method": "BuildScript.MakeBuild"
+        }, config, tool_context=tool_context)
 
-    print(f"[red]Failed after {max_replans} replans.[/red]")
-    state["last_result"] = "fail"
+        if not res_build.get("ok"):
+            print(f"[red]Erro fatal na Build: {res_build.get('output')}[/red]")
+            return
+
+        print("[green]Setup e Build concluídos com sucesso![/green]")
+    else:
+        print("[green]Projeto e Build encontrados! A saltar fase de compilação.[/green]")
+
+
+    # 3. FASE DE SIMULAÇÃO E EVOLUÇÃO
+    print("\n[green]A iniciar Simulação...[/green]")
+
+    sim_res = call_tool("run_game_simulation", {"exe_path": exe_path, "metrics_path": metrics_path}, config)
+
+    if sim_res.get("ok"):
+        metrics_data = sim_res["data"]["metrics"]
+        win_rate = metrics_data.get("win_rate", 0.0)
+        print(f"[cyan]Simulation completed. Metrics:[/cyan]\n{json.dumps(metrics_data, indent=2)}")
+
+        # 1. LER O FICHEIRO COMPLETO DO GENOMA
+        full_genome_data = {"configs": []}
+        if os.path.exists(genome_path):
+            with open(genome_path, "r", encoding="utf-8") as f:
+                full_genome_data = json.load(f)
+
+        # Se for o formato antigo (sem configs), cria uma lista default
+        if "configs" not in full_genome_data or not isinstance(full_genome_data["configs"], list):
+            print("[yellow]Aviso: Formato antigo detetado. A converter para Array...[/yellow]")
+            full_genome_data = {
+                "configs": [
+                    {
+                        "mode": "PointToPoint",
+                        "seed": 42,
+                        "arena": {"halfSize": 10.0, "walls": True},
+                        "agent": {"speed": 6.0, "acceleration": 12.0, "stopDistance": 0.5},
+                        "obstacles": {"count": 8, "minScale": 1.0, "maxScale": 2.5},
+                        "rules": {"timeLimit": 30.0, "rounds": 5, "targetCount": 1, "enemySpeed": 1.0}
+                    },
+                    {
+                        "mode": "Collect",
+                        "seed": 99,
+                        "arena": {"halfSize": 15.0, "walls": True},
+                        "agent": {"speed": 8.0, "acceleration": 15.0, "stopDistance": 0.5},
+                        "obstacles": {"count": 12, "minScale": 1.0, "maxScale": 1.5},
+                        "rules": {"timeLimit": 45.0, "rounds": 3, "targetCount": 10, "enemySpeed": 0.5}
+                    }
+                ]
+            }
+
+        # 2. DEFINIR QUAL O MODO A EVOLUIR NESTA RUN
+        target_mode_to_evolve = full_genome_data.get("mode", "PointToPoint")
+
+        current_genome = None
+        genome_index = 0
+        for i, c in enumerate(full_genome_data["configs"]):
+            if c.get("mode") == target_mode_to_evolve:
+                current_genome = c
+                genome_index = i
+                break
+
+        # Fallback se não encontrar o modo
+        if current_genome is None and len(full_genome_data["configs"]) > 0:
+            current_genome = full_genome_data["configs"][0]
+            genome_index = 0
+
+        # Verificação do Hall of Fame
+        if 0.6 <= win_rate <= 0.8:
+            hall_of_fame_dir = os.path.join("hall_of_fame")
+            os.makedirs(hall_of_fame_dir, exist_ok=True)
+            seed = current_genome.get("seed", "unknown")
+            hof_filename = os.path.join(hall_of_fame_dir, f"genome_seed_{seed}_wr_{win_rate:.2f}.json")
+            with open(hof_filename, "w", encoding="utf-8") as hof_file:
+                json.dump(full_genome_data, hof_file, indent=2)
+            print(f"[bold yellow]🏆 HALL OF FAME! Win rate {win_rate} is ideal. Genome saved to {hof_filename}[/bold yellow]")
+
+        # Evolução do Genoma
+        print(f"\n[magenta]Asking AI Director to EVOLVE the '{current_genome.get('mode')}' genome...[/magenta]")
+        evolved_data = evolve_game_genome(config, metrics_data, current_genome)
+        print(f"\n[bold magenta]=== {evolved_data} ===[/bold magenta]")
+
+        if evolved_data and "new_genome" in evolved_data:
+            new_genome = evolved_data["new_genome"]
+            new_genome["seed"] = current_genome.get("seed", 42) + 1
+
+            # 3. SUBSTITUIR APENAS O GENOMA EVOLUÍDO DENTRO DA LISTA
+            full_genome_data["configs"][genome_index] = new_genome
+
+            # Escreve o FICHEIRO INTEIRO de volta!
+            call_tool("write_file", {"path": genome_path, "content": json.dumps(full_genome_data, indent=2)}, config)
+
+            report_text = evolved_data.get('report', 'No report text provided.')
+            log_evolution_to_db(db_path, metrics_data, new_genome, report_text)
+            print(f"\n[bold magenta]=== AI EVOLUTION REPORT ===[/bold magenta]")
+            print(f"Report: {evolved_data.get('report', 'No report text provided.')}")
+            print(f"\n[bold green]New Genome Array Saved! Next build will use these values: {new_genome}[/bold green]")
+        else:
+            print("[red]AI failed to generate a valid JSON genome. Sticking to current version.[/red]")
+    else:
+        print(f"[yellow]Simulation failed to run or export metrics: {sim_res.get('output')}[/yellow]")
+
+    # Gravação de estado final
+    state["last_result"] = "ok"
+    state["history"].append({"ts": now_id(), "result": "ok"})
     save_state(state_path, state)
 
 if __name__ == "__main__":

@@ -13,7 +13,8 @@ run:
   max_replans: 2
   snapshot_keep: 20
   modes:
-    - "Collect"
+    - "PointToPoint"
+
 
 paths:
   state: "memory/current_state.json"

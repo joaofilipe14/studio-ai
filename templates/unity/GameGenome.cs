@@ -13,7 +13,6 @@ public class AgentData {
     public float speed = 5.0f;
     public float acceleration = 15.0f;
     public float stopDistance = 0.5f;
-    public bool userControl = false;
 }
 
 [Serializable]
@@ -30,7 +29,12 @@ public class RulesData {
     public int rounds = 5;
     public int targetCount = 1;
     public float enemySpeed = 0.0f;
+    public float powerUpChance = 0.1f;
+    public string powerUpType = "Mixed";
+    public float trapChance = 0.05f;
+    public float trapPenalty = 2.0f;
 }
+
 
 // Representa UMA configuração de jogo (Um Modo)
 [Serializable]
@@ -54,20 +58,24 @@ public class GameGenome {
 [Serializable]
 public class GameGenomeCollection {
     public GameGenome[] configs;
+    public string mode;
+    public bool userControl;
 
     public static GameGenomeCollection Load(string path) {
         if (File.Exists(path)) {
             string json = File.ReadAllText(path);
 
-            // Tenta ler como um Array (novo formato)
             GameGenomeCollection collection = JsonUtility.FromJson<GameGenomeCollection>(json);
 
-            // Fallback: Se o JSON for o antigo (sem array), cria uma lista com 1 elemento
             if (collection == null || collection.configs == null || collection.configs.Length == 0) {
                 GameGenome single = JsonUtility.FromJson<GameGenome>(json);
                 if (single != null) {
                     single.Validate();
-                    return new GameGenomeCollection { configs = new GameGenome[] { single } };
+                    return new GameGenomeCollection {
+                        configs = new GameGenome[] { single },
+                        mode = single.mode, // Fallback
+                        userControl = false // Fallback
+                    };
                 }
             } else {
                 foreach(var c in collection.configs) c.Validate();
@@ -78,7 +86,11 @@ public class GameGenomeCollection {
         Debug.LogWarning("Genome file not found at " + path + ". Using default values.");
         var defaultGenome = new GameGenome();
         defaultGenome.Validate();
-        return new GameGenomeCollection { configs = new GameGenome[] { defaultGenome } };
+        return new GameGenomeCollection {
+            configs = new GameGenome[] { defaultGenome },
+            mode = defaultGenome.mode,
+            userControl = false
+        };
     }
 
     public GameGenome GetConfig(string modeName) {

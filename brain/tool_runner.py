@@ -223,6 +223,9 @@ def call_tool(
                     (os.path.join(assets_dir, "Collectible.cs"), "Collectible.cs"),
                     (os.path.join(assets_dir, "ChaserAI.cs"), "ChaserAI.cs"),
                     (os.path.join(assets_dir, "GridWorld.cs"), "GridWorld.cs"),
+                    (os.path.join(assets_dir, "PowerUp.cs"), "PowerUp.cs"),
+                    (os.path.join(assets_dir, "ItemAnimate.cs"), "ItemAnimate.cs"),
+                    (os.path.join(assets_dir, "Trap.cs"), "Trap.cs"),
                 ]
 
                 for dst, tmpl in preflight_files:
@@ -273,7 +276,10 @@ def call_tool(
             "/assets/gamegenome.cs": "GameGenome.cs",
             "/assets/collectible.cs": "Collectible.cs",
             "/assets/chaserai.cs": "ChaserAI.cs",
-            "/assets/gridworld.cs": "GridWorld.cs"
+            "/assets/gridworld.cs": "GridWorld.cs",
+            "/assets/powerup.cs": "PowerUp.cs",
+            "/assets/itemanimate.cs": "ItemAnimate.cs",
+            "/assets/trap.cs": "Trap.cs"
         }
 
         for path_suffix, tmpl_name in templates_map.items():

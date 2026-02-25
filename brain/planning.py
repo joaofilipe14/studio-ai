@@ -1,25 +1,25 @@
 from __future__ import annotations
-
+import re
 import json
-from typing import Optional, Tuple, Dict, Any, List
+from typing import Optional, Tuple, List
 
 from brain.ollama_client import chat
 
 
 def extract_first_json_object(text: str) -> Optional[dict]:
-    """Extract first valid JSON object from mixed text/markdown."""
+    """Extract first valid JSON object, removing single-line comments."""
     if not text:
         return None
-
-    # pure JSON fast-path
+    text_clean = re.sub(r'//.*', '', text)
     try:
-        obj = json.loads(text)
+        obj = json.loads(text_clean)
         if isinstance(obj, dict):
             return obj
     except Exception:
         pass
 
-    start = text.find("{")
+    # Lógica de profundidade (Depth) para encontrar o objeto em texto sujo
+    start = text_clean.find("{")
     if start < 0:
         return None
 
@@ -27,35 +27,24 @@ def extract_first_json_object(text: str) -> Optional[dict]:
     in_str = False
     escape = False
 
-    for i in range(start, len(text)):
-        ch = text[i]
-
+    for i in range(start, len(text_clean)):
+        ch = text_clean[i]
         if in_str:
-            if escape:
-                escape = False
-            elif ch == "\\":
-                escape = True
-            elif ch == '"':
-                in_str = False
+            if escape: escape = False
+            elif ch == "\\": escape = True
+            elif ch == '"': in_str = False
             continue
+        if ch == '"': in_str = True; continue
 
-        if ch == '"':
-            in_str = True
-            continue
-
-        if ch == "{":
-            depth += 1
+        if ch == "{": depth += 1
         elif ch == "}":
             depth -= 1
             if depth == 0:
-                candidate = text[start : i + 1]
+                candidate = text_clean[start : i + 1]
                 try:
-                    obj = json.loads(candidate)
-                    if isinstance(obj, dict):
-                        return obj
+                    return json.loads(candidate)
                 except Exception:
                     return None
-
     return None
 
 
