@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 import plotly.express as px
 import json
 import os
@@ -27,23 +26,35 @@ else:
     # Aplicar o filtro
     df_filtered = df[df['game_mode'].isin(modo_f)]
 
-    # CORREÇÃO CRÍTICA: Verificar se o filtro deixou a tabela vazia!
+    # Verificar se o filtro deixou a tabela vazia!
     if df_filtered.empty:
         st.warning("⚠️ Nenhum dado encontrado para o modo de jogo selecionado. Altera os filtros na barra lateral.")
     else:
         # --- MÉTRICAS ---
-        latest = df_filtered.iloc[0] # Agora é seguro, sabemos que tem pelo menos 1 linha
+        latest = df_filtered.iloc[0] # O registo mais recente
         c1, c2, c3 = st.columns(3)
         c1.metric("Win Rate", f"{latest['win_rate']:.2f}")
         c2.metric("Enemy Speed", f"{latest['enemy_speed']} m/s")
         c3.metric("Obstacles", latest['obstacles_count'])
 
-        # --- GRÁFICO DE TENDÊNCIA ---
-        fig = px.line(df_filtered.sort_values('id'), x='id', y='win_rate', markers=True,
-                      title="Progresso da Evolução")
+        # --- GRÁFICO DE TENDÊNCIA (AGORA COM CORES POR MODO) ---
+        fig = px.line(
+            df_filtered.sort_values('id'),
+            x='id',
+            y='win_rate',
+            color='game_mode', # <--- A MÁGICA ACONTECE AQUI: Separa as linhas e dá-lhes cor!
+            markers=True,
+            title="Progresso da Evolução (Win Rate por Modo)",
+            labels={'id': 'Geração (ID)', 'win_rate': 'Win Rate', 'game_mode': 'Modo de Jogo'}
+        )
 
-        # CORREÇÃO DO AVISO: usar width="stretch" em vez de use_container_width=True
-        st.plotly_chart(fig, width="stretch")
+        # Atualizar o layout do gráfico para ficar mais bonito
+        fig.update_layout(yaxis_range=[0, 1.1]) # Fixa o eixo Y de 0 a 1.1 para o win rate não "dançar"
+        fig.add_hline(y=0.6, line_dash="dot", line_color="red", annotation_text="Min Sweet Spot (0.6)")
+        fig.add_hline(y=0.8, line_dash="dot", line_color="green", annotation_text="Max Sweet Spot (0.8)")
+
+        # Apresentar o gráfico (o parâmetro use_container_width é o standard atual do Streamlit)
+        st.plotly_chart(fig, use_container_width=True)
 
         # --- DETALHE DA GERAÇÃO SELECIONADA ---
         st.divider()

@@ -13,6 +13,8 @@ public class GameMetrics
     public float avg_time_to_goal;
     public string currentMode;
     public int total_collected;
+    public int traps_hit;
+    public bool is_human;
 }
 
 public class GameManager : MonoBehaviour
@@ -52,6 +54,7 @@ public class GameManager : MonoBehaviour
     private int winsCount = 0;
     private int timeoutsCount = 0;
     private int stuckCount = 0;
+    public int trapsHitCount = 0;
     private int totalCollectedGame = 0;
     private List<float> winTimes = new List<float>(); // Lista para calcular avg_time_to_goal
     [Header("Obstáculos")]
@@ -174,7 +177,7 @@ public class GameManager : MonoBehaviour
                     obs.GetComponent<Renderer>().material = obsMat;
                     System.Random rng = new System.Random(seed);
                     float randomScale = (float)rng.NextDouble() * (obsMaxScale - obsMinScale) + obsMinScale;
-                    obs.transform.localScale = Vector3.one * randomScale;
+                    obs.transform.localScale = new Vector3(0.9f, randomScale, 0.9f);
                     obs.transform.position = world.GridToWorld(new Vector2Int(x, z), randomScale / 2f);
                 }
             }
@@ -182,17 +185,70 @@ public class GameManager : MonoBehaviour
     }
 
     void SpawnEntities() {
-        System.Random rng = new System.Random(seed);
-        occupiedCells.Clear();
-        Vector2Int start = GetUniqueSpawnPosition(rng);
+         System.Random rng = new System.Random(seed);
+         occupiedCells.Clear();
+         Vector2Int start = GetUniqueSpawnPosition(rng);
 
-        GameObject agentGO = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        agentGO.GetComponent<Renderer>().material = CreateSimpleMaterial(Color.green);
-        agentGO.name = "Agent";
-        agent = agentGO.AddComponent<SimpleAgent>();
-        agent.world = world;
-        agent.gridPos = start;
-        agent.moveSpeed = agentMoveSpeed;
+         // 1. Criar o objeto pai do Agente
+         GameObject agentGO = new GameObject("Agent");
+
+         // 2. Carregar a textura original do Resources
+         Texture2D rawTex = Resources.Load<Texture2D>("Sprites/PlayerSprite");
+
+         // --- SOLUÇÃO PARA O ERRO DE LEITURA ---
+         // Criamos uma textura temporária que permite leitura (Read/Write)
+         RenderTexture rt = RenderTexture.GetTemporary(rawTex.width, rawTex.height, 0, RenderTextureFormat.Default, RenderTextureReadWrite.Linear);
+         Graphics.Blit(rawTex, rt);
+         RenderTexture previous = RenderTexture.active;
+         RenderTexture.active = rt;
+
+         Texture2D readableTex = new Texture2D(rawTex.width, rawTex.height);
+         readableTex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+         readableTex.Apply();
+
+         RenderTexture.active = previous;
+         RenderTexture.ReleaseTemporary(rt);
+         // ---------------------------------------
+
+         readableTex.filterMode = FilterMode.Point;
+
+         // Agora chamamos o teu Voxelizer com a textura que o Unity permite ler
+         CreateVoxelSprite(agentGO.transform, readableTex);
+
+
+         // 3. Configurar o Agente e Câmara (Resto do teu código mantém-se igual)
+         agent = agentGO.AddComponent<SimpleAgent>();
+         agent.world = world;
+         agent.gridPos = start;
+         agent.moveSpeed = agentMoveSpeed;
+        // Posicionar no mundo
+        agentGO.transform.position = world.GridToWorld(start);
+
+        Camera mainCam = Camera.main;
+        if (mainCam != null)
+        {
+            CameraController camController = mainCam.gameObject.GetComponent<CameraController>();
+            if (camController == null) camController = mainCam.gameObject.AddComponent<CameraController>();
+
+            camController.target = agentGO.transform;
+            camController.isHumanMode = userControl;
+        }
+        GameObject lightObj = new GameObject("PlayerLight");
+        lightObj.transform.SetParent(agentGO.transform);
+        lightObj.transform.localPosition = new Vector3(0, 0.5f, 0);
+        Light playerLight = lightObj.AddComponent<Light>();
+        playerLight.type = LightType.Point;
+        playerLight.color = new Color(1f, 0.9f, 0.7f); // Cor amarelada (tipo tocha/lanterna)
+        playerLight.intensity = 5.0f;
+        playerLight.shadows = LightShadows.Soft; // Sombras ativadas para dar terror nas curvas!
+
+        // 4. Definir o Raio de Visão com base no Genoma da IA
+        // Se a IA não tiver mandado o visionRadius (ou for 0), usamos 8.0f como padrão
+        float vRadius = 8.0f;
+        if (currentGenome != null && currentGenome.rules.visionRadius > 0) {
+            vRadius = currentGenome.rules.visionRadius;
+        }
+        playerLight.range = vRadius;
         agentGO.transform.position = world.GridToWorld(start);
 
         if (spawnChaser) {
@@ -370,6 +426,7 @@ public class GameManager : MonoBehaviour
 
     public void ApplyTrapPenalty(float amount) {
         currentTimer -= amount;
+        trapsHitCount++;
         if (currentTimer < 0) currentTimer = 0;
         Debug.Log($"Armadilha! -{amount}s");
     }
@@ -383,6 +440,54 @@ public class GameManager : MonoBehaviour
         Debug.Log("Velocidade normalizada.");
     }
 
+    void CreateVoxelSprite(Transform parent, Texture2D texture) {
+        int step = Mathf.Max(1, texture.width / 32);
+        float voxelSize = (float)step / texture.width;
+        int cubeCount = 0;
+
+        // Usamos a TUA função que já sabemos que funciona e nunca fica rosa!
+        Material baseMaterial = CreateSimpleMaterial(Color.white);
+        MaterialPropertyBlock propBlock = new MaterialPropertyBlock();
+
+        for (int y = 0; y < texture.height; y += step) {
+            for (int x = 0; x < texture.width; x += step) {
+                Color color = texture.GetPixel(x, y);
+
+                if (color.a > 0.1f) {
+                    GameObject voxel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    voxel.transform.SetParent(parent);
+
+                    voxel.transform.localPosition = new Vector3(
+                        (x - texture.width / 2f) / texture.width,
+                        (float)y / texture.width,
+                        0
+                    );
+
+                    voxel.transform.localScale = Vector3.one * voxelSize;
+
+                    Renderer rend = voxel.GetComponent<Renderer>();
+                    rend.sharedMaterial = baseMaterial;
+
+                    // Define a cor no Material Property Block
+                    propBlock.SetColor("_Color", color);
+                    propBlock.SetColor("_BaseColor", color);
+                    rend.SetPropertyBlock(propBlock);
+
+                    Destroy(voxel.GetComponent<BoxCollider>());
+                    cubeCount++;
+                }
+            }
+        }
+
+        Debug.Log($"🎨 [Voxelizer] Otimizado e com Cores! Criou {cubeCount} blocos.");
+
+        if (cubeCount == 0) {
+            GameObject fallback = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            fallback.transform.SetParent(parent);
+            fallback.GetComponent<Renderer>().material = CreateSimpleMaterial(Color.magenta);
+        }
+    }
+
     void QuitGame() {
         // Cálculo final das métricas antes de sair
         GameMetrics metrics = new GameMetrics {
@@ -392,7 +497,9 @@ public class GameManager : MonoBehaviour
             stuck_events = stuckCount,
             win_rate = rounds > 0 ? (float)winsCount / rounds : 0f,
             currentMode = this.currentMode,
-            total_collected = this.totalCollectedGame
+            total_collected = this.totalCollectedGame,
+            traps_hit = trapsHitCount,
+            is_human = userControl
         };
 
         float sumTime = 0f;
@@ -409,8 +516,7 @@ public class GameManager : MonoBehaviour
         #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
         #else
-            Application.Quit(0);
-            System.Diagnostics.Process.GetCurrentProcess().Kill(); // Garante o fecho imediato em batch mode
+            Application.Quit();
         #endif
     }
 }

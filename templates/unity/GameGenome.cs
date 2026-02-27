@@ -33,6 +33,7 @@ public class RulesData {
     public string powerUpType = "Mixed";
     public float trapChance = 0.05f;
     public float trapPenalty = 2.0f;
+    public float visionRadius;
 }
 
 

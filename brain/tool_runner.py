@@ -159,10 +159,12 @@ def call_tool(
                 assets_dir = os.path.join(proj_abs, "Assets")
                 editor_dir = os.path.join(assets_dir, "Editor")
                 music_dir = os.path.join(assets_dir, "Resources", "Music")
+                sprite_dir = os.path.join(assets_dir, "Resources", "Sprites")
                 builds_dir = os.path.join(proj_abs, "Builds")
 
                 _ensure_dir(assets_dir)
                 _ensure_dir(editor_dir)
+                _ensure_dir(sprite_dir)
                 _ensure_dir(music_dir)
                 _ensure_dir(builds_dir)
 
@@ -211,10 +213,22 @@ def call_tool(
                         print(f"[AVISO] Ficheiro de música não encontrado em: {music_src}")
                 except Exception as e:
                     print(f"[ERRO] Falha ao copiar música: {e}")
+
+                sprite_src = os.path.join("templates", "sprites", "PlayerSprite.png")
+                sprite_dst = os.path.join(sprite_dir, "PlayerSprite.png") # resources_sprites_dir deve apontar para Assets/Resources/Sprites/
+
+                try:
+                    if os.path.exists(sprite_src):
+                        import shutil
+                        shutil.copy2(sprite_src, sprite_dst)
+                        print(f"[DEBUG] Sprite IA injetado em: {sprite_dst}")
+                    else:
+                        # Se a IA ainda não gerou nada, podes ter um fallback ou apenas avisar
+                        print(f"[AVISO] Sprite não encontrado em: {sprite_src}. Usando padrão do Unity.")
+                except Exception as e:
+                    print(f"[ERRO] Falha ao copiar sprite: {e}")
                 # 2. Injeção de Scripts
                 preflight_files = [
-                    (os.path.join(assets_dir, "Rotator.cs"), "Rotator.cs"),
-                    (os.path.join(assets_dir, "HelloFromAI.cs"), "HelloFromAI.cs"),
                     (os.path.join(editor_dir, "BuildScript.cs"), "BuildScript.cs"),
                     (os.path.join(assets_dir, "SimpleAgent.cs"), "SimpleAgent.cs"),
                     (os.path.join(assets_dir, "Goal.cs"), "Goal.cs"),
@@ -226,6 +240,7 @@ def call_tool(
                     (os.path.join(assets_dir, "PowerUp.cs"), "PowerUp.cs"),
                     (os.path.join(assets_dir, "ItemAnimate.cs"), "ItemAnimate.cs"),
                     (os.path.join(assets_dir, "Trap.cs"), "Trap.cs"),
+                    (os.path.join(assets_dir, "CameraController.cs"), "CameraController.cs"),
                 ]
 
                 for dst, tmpl in preflight_files:
@@ -268,8 +283,6 @@ def call_tool(
         final_norm = _norm_path(args["path"]).lower()
         templates_map = {
             "/assets/editor/buildscript.cs": "BuildScript.cs",
-            "/assets/hellofromai.cs": "HelloFromAI.cs",
-            "/assets/rotator.cs": "Rotator.cs",
             "/assets/simpleagent.cs": "SimpleAgent.cs",
             "/assets/goal.cs": "Goal.cs",
             "/assets/gamemanager.cs": "GameManager.cs",
@@ -279,7 +292,8 @@ def call_tool(
             "/assets/gridworld.cs": "GridWorld.cs",
             "/assets/powerup.cs": "PowerUp.cs",
             "/assets/itemanimate.cs": "ItemAnimate.cs",
-            "/assets/trap.cs": "Trap.cs"
+            "/assets/trap.cs": "Trap.cs",
+            "/assets/cameracontroller.cs": "CameraController.cs"
         }
 
         for path_suffix, tmpl_name in templates_map.items():

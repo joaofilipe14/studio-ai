@@ -6,12 +6,13 @@ import shutil
 import sys
 from pathlib import Path
 
-
+# Adicionamos as novas pastas aos defaults de segurança
 SAFE_DEFAULTS = [
     "projects/game_001",
     "logs",
+    "hall_of_fame",
+    "releases"
 ]
-
 
 def is_within(base: Path, target: Path) -> bool:
     """Return True if target is within base (after resolving)."""
@@ -21,7 +22,6 @@ def is_within(base: Path, target: Path) -> bool:
         return str(targ_r).startswith(str(base_r) + os.sep)
     except Exception:
         return False
-
 
 def safe_rmtree(repo_root: Path, rel_path: str) -> None:
     """Remove a directory under repo_root safely."""
@@ -45,30 +45,10 @@ def safe_rmtree(repo_root: Path, rel_path: str) -> None:
     print(f"[delete] {target}")
     shutil.rmtree(target, ignore_errors=False)
 
-
-def delete_unity_logs(repo_root: Path, pattern: str = "unity-") -> None:
-    logs_dir = (repo_root / "logs").resolve()
-    if not logs_dir.exists():
-        return
-    if not is_within(repo_root, logs_dir):
-        raise RuntimeError("logs dir is outside repo root?")
-
-    deleted = 0
-    for p in logs_dir.glob("*.log"):
-        if pattern in p.name:
-            print(f"[delete] {p}")
-            p.unlink(missing_ok=True)
-            deleted += 1
-    if deleted == 0:
-        print("[skip] no unity logs matched")
-
-
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Reset workspace safely (Unity projects/logs).")
-    parser.add_argument("--project", default="projects/game_001", help="Project folder to delete (relative to repo).")
-    parser.add_argument("--delete-logs", action="store_true", help="Delete Unity logs in logs/ (unity-*.log).")
+    parser = argparse.ArgumentParser(description="Reset workspace safely (Fast Wipe).")
+    parser.add_argument("--project", default="projects/game_001", help="Project folder to delete.")
     parser.add_argument("--delete-backups", action="store_true", help="Delete backups/ folder (DANGER).")
-    parser.add_argument("--yes", action="store_true", help="Do not prompt.")
     args = parser.parse_args()
 
     repo_root = Path.cwd().resolve()
@@ -79,39 +59,26 @@ def main() -> int:
         return 2
 
     print(f"Repo root: {repo_root}")
-    print(f"Will delete: {args.project}")
-    if args.delete_logs:
-        print("Will delete: logs/unity-*.log")
-    if args.delete_backups:
-        print("Will delete: backups/ (DANGER)")
+    print("\n🧹 A INICIAR LIMPEZA TOTAL IMEDIATA...\n")
 
-    if not args.yes:
-        ans = input("Type 'RESET' to continue: ").strip()
-        if ans != "RESET":
-            print("Aborted.")
-            return 1
-
-    # Delete project folder
+    # 1. Apagar pasta do Projeto (Desenvolvimento Unity e Build Atual)
     safe_rmtree(repo_root, args.project)
 
-    # Delete unity logs
-    if args.delete_logs:
-        delete_unity_logs(repo_root, pattern="unity-")
-        logs_folder = repo_root / "logs"
-        if logs_folder.exists() and not any(logs_folder.iterdir()):
-            # Se a pasta estiver vazia após apagar os logs, removemos a pasta
-            safe_rmtree(repo_root, "logs")
-        elif logs_folder.exists():
-            # Forçar a remoção da pasta e tudo lá dentro
-            safe_rmtree(repo_root, "logs")
+    # 2. Apagar pasta de Logs (Base de dados evolution.db, relatórios da IA)
+    safe_rmtree(repo_root, "logs")
 
-    # Delete backups (optional)
+    # 3. Apagar Obras-Primas antigas
+    safe_rmtree(repo_root, "hall_of_fame")
+
+    # 4. Apagar Versões de Produção compiladas
+    safe_rmtree(repo_root, "releases")
+
+    # 5. Apagar backups (opcional)
     if args.delete_backups:
         safe_rmtree(repo_root, "backups")
 
-    print("Done.")
+    print("\n✅ Reset concluído com sucesso. Laboratório pronto para nova simulação!")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

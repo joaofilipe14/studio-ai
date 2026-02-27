@@ -41,20 +41,21 @@ static void EnsureTagsExist()
         Directory.CreateDirectory("Builds");
 
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-
+        RenderSettings.skybox = null;
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+        RenderSettings.ambientLight = Color.black;
         // Camera
         var camGO = new GameObject("Main Camera");
-        var cam = camGO.AddComponent<Camera>();
         camGO.tag = "MainCamera";
         camGO.transform.position = new Vector3(0, 16f, -18f);
         camGO.transform.rotation = Quaternion.Euler(45f, 0f, 0f);
-
-        // Light
+        var cam = camGO.AddComponent<Camera>();
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = Color.black;
         var lightGO = new GameObject("Directional Light");
-        var light = lightGO.AddComponent<Light>();
-        light.type = LightType.Directional;
-        lightGO.transform.rotation = Quaternion.Euler(50, -30, 0);
-
+                var light = lightGO.AddComponent<Light>();
+                light.type = LightType.Directional;
+                lightGO.transform.rotation = Quaternion.Euler(50, -30, 0);
         // GameManager
         var gmGO = new GameObject("GameManager");
         var gm = gmGO.AddComponent<GameManager>();
