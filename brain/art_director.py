@@ -8,7 +8,6 @@ from rembg import remove
 from rich import print
 
 # Configurações das APIs Locais
-OLLAMA_URL = "http://localhost:11434/api/generate"
 SD_API_URL = "http://127.0.0.1:7860/sdapi/v1/txt2img"
 
 # Determinar caminhos base
@@ -16,32 +15,27 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_SPRITES = os.path.join(BASE_DIR, "templates", "sprites")
 TEMPLATE_TEXTURES = os.path.join(BASE_DIR, "templates", "textures")
 
-def generate_character_prompt(genome: dict) -> str:
-    """Pede ao Ollama para imaginar um personagem baseado na velocidade."""
-    speed = genome.get("agent", {}).get("speed", 6.0)
+# 🚨 RECEITAS ESTritas (Para forçar vista Top-Down e Pixel Art puro)
+ASSET_RECIPES = {
+    "Player": {"file": "PlayerSprite.png", "is_sprite": True, "prompt": "pixel art sprite, {theme} main hero character, top-down perspective, full body, isolated on pure white background, flat colors"},
+    "Enemy": {"file": "EnemySprite.png", "is_sprite": True, "prompt": "pixel art sprite, {theme} scary enemy monster, top-down perspective, full body, isolated on pure white background, flat colors"},
+    "Floor": {"file": "FloorTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} floor tile, strictly top-down view, seamless pattern, flat 2d surface, no perspective"},
+    "Wall": {"file": "ObstacleTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} solid metal wall crate, strictly top-down view, flat 2d, no perspective"},
+    "Goal": {"file": "GoalTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} glowing exit teleport pad, strictly top-down view, flat 2d, centered"},
+    "Collectible": {"file": "CollectibleTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} shiny valuable coin item, strictly top-down view, centered, isolated on solid background"},
+    "Trap": {"file": "TrapTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} dangerous floor spikes trap, strictly top-down view, flat 2d, no perspective"},
+    "PowerUp": {"file": "PowerUpTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} glowing energy battery potion, strictly top-down view, centered, flat 2d"}
+}
 
-    system_prompt = """You are an expert video game art director. Output ONLY comma-separated tags."""
-    user_prompt = f"""Design a character sprite. Speed stat is {speed}. 
-    If speed > 6: agile ninja/sci-fi runner. If speed < 5: heavy knight/golem.
-    Technical tags: 'front view, symmetrical, standing still, flat colors, pure white background, pixel art, sharp edges'."""
-
-    payload = {
-        "model": "llama3",
-        "prompt": f"{system_prompt}\n{user_prompt}",
-        "stream": False
-    }
-
+def check_apis():
     try:
-        response = requests.post(OLLAMA_URL, json=payload)
-        return response.json().get("response", "").strip()
-    except:
-        return "pixel art character, standing, white background"
+        requests.get("http://127.0.0.1:7860/", timeout=2)
+    except requests.ConnectionError:
+        raise ConnectionError("🎨 Servidor Stable Diffusion não encontrado! Garante que o WebUI está a correr com --api.")
 
 def save_and_process_image(img_b64, output_path, should_remove_bg=False):
-    """Converte base64, processa (opcionalmente remove fundo) e guarda."""
     image_data = base64.b64decode(img_b64)
     image = Image.open(BytesIO(image_data))
-
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     if should_remove_bg:
@@ -51,14 +45,15 @@ def save_and_process_image(img_b64, output_path, should_remove_bg=False):
     image.save(output_path, format="PNG")
     print(f"[bold green]✅ Guardado em:[/bold green] {output_path}")
 
-
 def generate_art_asset(prompt, output_path, is_sprite=True):
-    """Chama o Stable Diffusion usando a mesma LoRA para consistência."""
-    print(f"[yellow]🎨 Gerando: {os.path.basename(output_path)}...[/yellow]")
+    print(f"[yellow]🎨 A pintar: {os.path.basename(output_path)}...[/yellow]")
+
+    # 🚨 NEGATIVE PROMPT ESTrito (Proíbe 3D, isometria e paisagens)
+    negative_prompt = "photorealistic, realistic, 3d, isometric, perspective, landscape, scenery, shadows, gradients, messy, ugly, complex background, text, watermark"
 
     sd_payload = {
         "prompt": f"{prompt} <lora:128pixelartXL:1>",
-        "negative_prompt": "photorealistic, realistic, 3d, shadows, gradients, messy, ugly, complex background",
+        "negative_prompt": negative_prompt,
         "steps": 25,
         "cfg_scale": 7.5,
         "width": 1024,
@@ -75,30 +70,27 @@ def generate_art_asset(prompt, output_path, is_sprite=True):
         img_b64 = response.json()["images"][0]
         save_and_process_image(img_b64, output_path, should_remove_bg=is_sprite)
     except Exception as e:
-        print(f"[red]Erro na API de Arte: {e}[/red]")
+        raise RuntimeError(f"Falha ao gerar {os.path.basename(output_path)}: {e}")
 
-def generate_environment(genome: dict):
-    """Gera texturas de chão e obstáculos baseadas no tema."""
-    speed = genome.get("agent", {}).get("speed", 6.0)
-    theme = "cyberpunk neon city" if speed > 7 else "medieval stone dungeon"
+def generate_single_asset(theme: str, asset_key: str):
+    """Gera apenas um asset específico a partir das receitas."""
+    check_apis()
+    recipe = ASSET_RECIPES[asset_key]
+    prompt = recipe["prompt"].format(theme=theme)
 
-    # Gerar Chão (Seamless)
-    floor_prompt = f"top-down view, {theme} floor tiles, seamless pattern, pixel art, flat colors"
-    generate_art_asset(floor_prompt, os.path.join(TEMPLATE_TEXTURES, "FloorTexture.png"), is_sprite=False)
+    out_dir = TEMPLATE_SPRITES if recipe["is_sprite"] else TEMPLATE_TEXTURES
+    out_path = os.path.join(out_dir, recipe["file"])
 
-    # Gerar Obstáculo
-    obs_prompt = f"top-down view, {theme} wall pillar, metal crate, pixel art, flat colors"
-    generate_art_asset(obs_prompt, os.path.join(TEMPLATE_TEXTURES, "ObstacleTexture.png"), is_sprite=False)
+    generate_art_asset(prompt, out_path, is_sprite=recipe["is_sprite"])
+    return out_path
 
-if __name__ == "__main__":
-    # Teste: Criar herói e ambiente para um ninja rápido
-    test_genome = {"agent": {"speed": 9.0}}
+def generate_full_theme(genome: dict):
+    """Gera TODOS os assets do jogo baseados no tema atual."""
+    check_apis()
+    theme = genome.get("theme", "Cyberpunk Neon")
+    print(f"\n[bold magenta]🚀 A iniciar criação do Pacote de Arte: {theme}[/bold magenta]")
 
-    print("[magenta]🚀 Sessão de Arte Studio-AI Iniciada[/magenta]")
+    for asset_key in ASSET_RECIPES.keys():
+        generate_single_asset(theme, asset_key)
 
-    # 1. Gerar Personagem
-    char_prompt = generate_character_prompt(test_genome)
-    generate_art_asset(char_prompt, os.path.join(TEMPLATE_SPRITES, "PlayerSprite.png"), is_sprite=True)
-
-    # 2. Gerar Ambiente
-    generate_environment(test_genome)
+    print("\n[bold green]🎉 Pacote de Arte Completo Gerado com Sucesso![/bold green]")

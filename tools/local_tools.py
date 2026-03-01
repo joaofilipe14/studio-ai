@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, json, shutil, subprocess, time
+import os, shutil, subprocess
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, List
 import platform, sys
@@ -124,10 +124,11 @@ def env_info() -> ToolResult:
 
 def run_game_simulation(exe_path: str, metrics_path: str, timeout: int = 120) -> ToolResult:
     """
-    Executa o jogo Unity em modo Headless, espera que feche, e lê o metrics.json.
+    Executa o jogo Unity em modo Headless, escuta os logs em tempo real e lê o metrics.json.
     """
     try:
         import subprocess, os, json
+        from rich import print
 
         if not os.path.exists(exe_path):
             return ToolResult(False, f"Executable not found: {exe_path}")
@@ -138,18 +139,44 @@ def run_game_simulation(exe_path: str, metrics_path: str, timeout: int = 120) ->
 
         cmd = [exe_path, "-batchmode", "-nographics"]
 
-        # Executa e bloqueia o script até o jogo terminar (ou dar timeout)
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        print(f"\n[bold cyan]🚀 A lançar o Unity QA Bot...[/bold cyan]")
+        print(f"[dim]A escutar a telemetria do motor em tempo real (Timeout: {timeout}s)...[/dim]\n")
+
+        captured_output = []
+
+        # Usar Popen com PIPE para ler o stdout linha a linha em tempo real!
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1) as process:
+            for line in process.stdout:
+                clean_line = line.strip()
+                if clean_line:
+                    # Colorir os logs para ser mais fácil ler
+                    if "Exception" in clean_line or "Error" in clean_line or "Crash" in clean_line:
+                        print(f"[bold red]  [UNITY][/bold red] {clean_line}")
+                    elif "Warning" in clean_line:
+                        print(f"[yellow]  [UNITY][/yellow] {clean_line}")
+                    elif "BOT" in clean_line or "A iniciar Nível" in clean_line:
+                        print(f"[bold green]  [BOT][/bold green] {clean_line}")
+                    else:
+                        print(f"[dim]  [UNITY] {clean_line}[/dim]")
+
+                    captured_output.append(clean_line)
+
+            # Aguarda que o processo termine de forma limpa
+            process.wait(timeout=timeout)
+
+        stdout_str = "\n".join(captured_output)
 
         if not os.path.exists(metrics_path):
-            return ToolResult(False, "Simulation finished but metrics.json not found. Did it crash?", {"stdout": p.stdout})
+            return ToolResult(False, "Simulação terminou mas o metrics.json não foi gerado. O jogo crashou?", {"stdout": stdout_str})
 
         with open(metrics_path, "r", encoding="utf-8") as f:
             metrics = json.load(f)
 
-        return ToolResult(True, "Simulation ok", {"metrics": metrics, "stdout": p.stdout})
+        return ToolResult(True, "Simulation ok", {"metrics": metrics, "stdout": stdout_str})
 
     except subprocess.TimeoutExpired:
-        return ToolResult(False, "Simulation timed out.")
+        # Se o jogo encravar e demorar mais que o tempo limite, matamos o processo!
+        process.kill()
+        return ToolResult(False, "A Simulação demorou demasiado tempo e foi cancelada (Timeout).")
     except Exception as e:
         return ToolResult(False, f"Simulation error: {e}")

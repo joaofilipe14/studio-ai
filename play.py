@@ -85,13 +85,25 @@ def launch_manual_test():
         print(f"[red]Erro ao ler as métricas: {e}[/red]")
         return
 
-    # Descobre que nível é que jogaste
-    played_level_id = metrics_data.get("level_id", 1)
-    win_rate = metrics_data.get('win_rate', 0.0)
+    # 🚨 NOVA LÓGICA DE LEITURA DA CAMPANHA
+    campaign_completed = metrics_data.get("campaign_completed", False)
+
+    # Se chegaste ao fim da campanha é o 10, senão é onde encravaste
+    played_level_id = metrics_data.get("bottleneck_level", 1) if not campaign_completed else 10
+
+    win_rate = 0.0
+    played_mode = "PointToPoint"
+
+    # Vamos procurar os dados do nível específico na lista de relatórios
+    for rep in metrics_data.get("level_reports", []):
+        if rep.get("level_id") == played_level_id:
+            win_rate = rep.get("win_rate", 0.0)
+            played_mode = rep.get("mode", "PointToPoint")
+            break
 
     print(f"[white]Métricas recebidas: Nível Jogado = {played_level_id} | Win Rate = {win_rate}[/white]")
 
-    # 5. ENCONTRA O NÍVEL NA LISTA
+    # 5. ENCONTRA O NÍVEL NA LISTA DE CAMPANHA
     current_level_genome = None
     level_index = -1
     for i, level in enumerate(campaign):
@@ -107,8 +119,6 @@ def launch_manual_test():
     # 6. AVALIAÇÃO DA IA (Passa APENAS o nível jogado)
     if win_rate >= 1.0:
         print(f"[bold green]🎉 Passaste o Nível {played_level_id} com sucesso! Não é preciso facilitar o nível.[/bold green]")
-        # Como o humano passou, não precisamos de castigar o nível. Mas se quiseres que a IA o torne mais difícil,
-        # podes pedir-lhe! Por agora, deixamos seguir.
     else:
         print(f"[cyan]Parece que tiveste dificuldades no Nível {played_level_id}. A pedir ao Diretor de IA para ajustar a dificuldade para ti...[/cyan]")
 

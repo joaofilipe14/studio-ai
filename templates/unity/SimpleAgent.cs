@@ -203,4 +203,15 @@ public class SimpleAgent : MonoBehaviour
         path.Reverse(); // Inverter para a ordem correta
         return path;
     }
+
+    public void ResetPosition(Vector2Int newPos) {
+        gridPos = newPos;
+        targetWorldPos = world.GridToWorld(gridPos, transform.position.y);
+        transform.position = targetWorldPos;
+
+        // Limpa a memória do caminho antigo
+        currentPath = null;
+        pathIndex = 0;
+        pathRecalculateTimer = 0f;
+    }
 }

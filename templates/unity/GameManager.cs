@@ -142,9 +142,16 @@ public class GameManager : MonoBehaviour
 
         float vRadius = selectedClass != null ? selectedClass.stats.visionRadius : 8.0f;
         string spriteToLoad = selectedClass != null ? selectedClass.spriteName : "PlayerSprite";
-       agent = LevelSpawner.SpawnAgent(world, rng, agentMoveSpeed, userControl, vRadius, spriteToLoad);
-
-       // 🚨 NOVO: Mapeia o labirinto a partir dos pés do jogador!
+        if (agent == null) {
+            // Se for a primeira vez, cria o modelo 3D pesado
+            agent = LevelSpawner.SpawnAgent(world, rng, agentMoveSpeed, userControl, vRadius, spriteToLoad);
+        } else {
+            // Se ele já existir, só o teletransportamos! (Poupa 1024 cubos!)
+            Vector2Int newStart = LevelSpawner.GetUniqueSpawnPosition(world, rng);
+            agent.world = world;
+            agent.moveSpeed = agentMoveSpeed;
+            agent.ResetPosition(newStart);
+        }
        LevelSpawner.CalculateReachableArea(world, agent.gridPos);
 
        // --- CÁLCULO DE DISTÂNCIAS ---
@@ -308,7 +315,8 @@ public class GameManager : MonoBehaviour
         finished = true;
         isPlaying = false;
         winsCount++;
-
+        string statsMsg = $"Nível {currentLevel.level_id} Concluído!\nTempo Sobrante: {currentTimer:F1}s\nMoedas: {collectedInRound}";
+        Debug.Log("Vitoria!! no nivel " + currentLevel.level_id);
         // 1. GUARDA O RELATÓRIO DESTE NÍVEL ANTES DE AVANÇAR
         globalMetrics.level_reports.Add(new LevelReport {
             level_id = currentLevel != null ? currentLevel.level_id : 1,
@@ -322,6 +330,8 @@ public class GameManager : MonoBehaviour
 
         currentLevelIndex++; // Avança na Campanha
         if (userControl && currentPlayer != null) {
+            currentPlayer.wallet.totalCoins += collectedInRound; // Enche a carteira!
+            currentPlayer.stats.totalWins++;
             currentPlayer.currentCampaignLevel = Mathf.Max(currentPlayer.currentCampaignLevel, currentLevelIndex + 1);
             currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
         }
@@ -351,7 +361,7 @@ public class GameManager : MonoBehaviour
         isPlaying = false;
         stuckCount++;
         currentLevelAttempts++; // Conta uma tentativa
-
+        Debug.Log("Foi apanhado!");
         if (!userControl) {
             // LÓGICA DO BOT (Testador)
             if (currentLevelAttempts >= botMaxAttempts) {
@@ -363,19 +373,19 @@ public class GameManager : MonoBehaviour
         } else {
             // LÓGICA DO HUMANO (Arcade)
             if (currentPlayer != null) {
+                // 🚨 FIX: Ficas com as moedas que conseguiste apanhar antes de morrer!
+                currentPlayer.wallet.totalCoins += collectedInRound;
                 currentPlayer.stats.currentLives--; // Perde uma vida!
 
                 if (currentPlayer.stats.currentLives <= 0) {
-                    // GAME OVER!
-                    currentPlayer.stats.currentLives = currentPlayer.stats.maxLives; // Restaura para a próxima
-                    currentPlayer.currentCampaignLevel = 1; // Volta ao início da campanha!
+                    currentPlayer.stats.currentLives = currentPlayer.stats.maxLives;
+                    currentPlayer.currentCampaignLevel = 1;
                     currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
 
-                    if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, "GAME OVER! Ficas-te sem vidas. A Campanha foi reiniciada.");
+                    if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"GAME OVER no Nível {currentLevel.level_id}!\nFicaste sem vidas.");
                 } else {
-                    // AINDA TEM VIDAS
                     currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
-                    if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"Morreste! Vidas restantes: {currentPlayer.stats.currentLives}");
+                    if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"Morreste no Nível {currentLevel.level_id}!\nVidas restantes: {currentPlayer.stats.currentLives}");
                 }
             }
         }
@@ -383,22 +393,27 @@ public class GameManager : MonoBehaviour
 
     void Lose(string reason) {
         if (finished) return;
+        Debug.Log("Perdeu!");
         finished = true;
         isPlaying = false;
         timeoutsCount++;
+        if (userControl && currentPlayer != null) {
+            currentPlayer.wallet.totalCoins += collectedInRound;
+            currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+        }
 
-        if (userControl && UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, reason);
+        if (userControl && UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"Falhaste o Nível {currentLevel.level_id}!\nMotivo: {reason}");
         else Invoke("StartNewRun", 0.05f);
     }
 
-    void CleanupScene() {
-        foreach (var obj in GameObject.FindGameObjectsWithTag("Collectible")) Destroy(obj);
-        GameObject[] allObjects = Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None);
-        foreach (var o in allObjects) {
-            if (o.name.StartsWith("Obstacle_") || o.name == "Floor" || o.name == "Agent" || o.name == "Goal" || o.name.StartsWith("Chaser_"))
-                Destroy(o);
-        }
-    }
+   void CleanupScene() {
+       foreach (var obj in GameObject.FindGameObjectsWithTag("Collectible")) Destroy(obj);
+       GameObject[] allObjects = Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None);
+       foreach (var o in allObjects) {
+           if (o.name.StartsWith("Obstacle_") || o.name == "Floor" || o.name == "Goal" || o.name.StartsWith("Chaser_"))
+               Destroy(o);
+       }
+   }
 
     public void OnCollect(Vector2Int p) {
         if (finished) return;
@@ -436,6 +451,7 @@ public class GameManager : MonoBehaviour
             UIManager.Instance.ShowTitleScreen(); // Abre o Menu Principal
         }
         CleanupScene();
+        if (agent != null) Destroy(agent.gameObject);
         isPlaying = false;
     }
 

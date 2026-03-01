@@ -3,8 +3,7 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.Events;
 
-public class UIManager : MonoBehaviour
-{
+public class UIManager : MonoBehaviour {
     public static UIManager Instance { get; private set; }
 
     private GameObject canvasGO;
@@ -17,9 +16,10 @@ public class UIManager : MonoBehaviour
     private Text timerText;
     private Text scoreText;
     private Text classText;
+    private Text levelText;
+    private Text livesText;
 
-    void Awake()
-    {
+    void Awake() {
         if (Instance == null) Instance = this;
 
         defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
@@ -38,17 +38,28 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    void Update()
-    {
+    void Update() {
         if (currentState == UIState.HUD && GameManager.Instance != null && !GameManager.Instance.finished)
         {
-            if (timerText != null) timerText.text = $"Tempo: {GameManager.Instance.timeLimit - GameManager.Instance.currentTimer:F1}s";
+            if (timerText != null) {
+                float timeLeft = GameManager.Instance.currentTimer;
+                timerText.text = $"Tempo: {timeLeft:F1}s";
+
+                // 🚨 PRESSÃO: Fica vermelho e avisa-te quando faltam menos de 10 segundos!
+                if (timeLeft <= 10f) timerText.color = Color.red;
+                else timerText.color = Color.white;
+            }
 
             if (scoreText != null) {
                 if (GameManager.Instance.currentMode == "Collect")
                     scoreText.text = $"Moedas: {GameManager.Instance.collectedInRound} / {GameManager.Instance.collectibles}";
                 else
                     scoreText.text = "Objetivo: Encontrar a Meta!";
+            }
+
+            // 🚨 MOSTRA O NÚMERO DO NÍVEL
+            if (levelText != null && GameManager.Instance.currentLevel != null) {
+                levelText.text = $"NÍVEL {GameManager.Instance.currentLevel.level_id}";
             }
         }
     }
@@ -71,12 +82,18 @@ public class UIManager : MonoBehaviour
     public void ShowTitleScreen()
     {
         ClearCurrentMenu();
-        UnlockMouse(); // DEVOLVE O RATO!
+        UnlockMouse();
         currentState = UIState.Title;
         currentMenu = CreatePanel("TitleScreen", new Color(0.1f, 0.1f, 0.15f, 1f));
 
-        CreateText(currentMenu.transform, "STUDIO-AI: A SIMULAÇÃO", 80, new Vector2(0, 200), Color.cyan);
-        CreateText(currentMenu.transform, "Seja bem-vindo, Humano.", 30, new Vector2(0, 100), Color.white);
+        // 🚨 VAI LER O TEU SAVE PARA MOSTRAR OS STATUS NO MENU!
+        int moedas = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.wallet.totalCoins : 0;
+        int nivelAtual = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.currentCampaignLevel : 1;
+
+        CreateText(currentMenu.transform, "STUDIO-AI: A SIMULAÇÃO", 80, new Vector2(0, 250), Color.cyan);
+
+        // MOSTRA A INFO DO JOGADOR A AMARELO!
+        CreateText(currentMenu.transform, $"Progresso: Nível {nivelAtual} | Cofre: {moedas} Moedas", 35, new Vector2(0, 120), Color.yellow);
 
         CreateButton(currentMenu.transform, "INICIAR SIMULAÇÃO", new Vector2(0, -50), new Vector2(300, 60), () => {
             ShowHUD();
@@ -92,41 +109,42 @@ public class UIManager : MonoBehaviour
         });
     }
 
-    public void ShowVaultScreen()
-    {
+    public void ShowVaultScreen() {
         ClearCurrentMenu();
-        UnlockMouse(); // DEVOLVE O RATO!
-        currentState = UIState.Vault;
-        currentMenu = CreatePanel("VaultScreen", new Color(0.15f, 0.1f, 0.1f, 1f));
+        UnlockMouse();
+        currentState = UIState.Title;
+        currentMenu = CreatePanel("VaultScreen", new Color(0.1f, 0.2f, 0.1f, 1f)); // Fundo verde escuro
 
-        int coins = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.wallet.totalCoins : 0;
+        int moedas = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.wallet.totalCoins : 0;
+        int vidasMaximas = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.stats.maxLives : 3;
 
-        CreateText(currentMenu.transform, "O COFRE SECRETO", 60, new Vector2(0, 400), Color.yellow);
-        CreateText(currentMenu.transform, $"Saldo Disponível: {coins} Moedas", 40, new Vector2(0, 320), Color.white);
+        CreateText(currentMenu.transform, "O COFRE DE UPGRADES", 60, new Vector2(0, 250), Color.yellow);
+        CreateText(currentMenu.transform, $"Saldo Atual: {moedas} Moedas", 40, new Vector2(0, 150), Color.white);
+        CreateText(currentMenu.transform, $"Vidas Máximas Atuais: {vidasMaximas}", 30, new Vector2(0, 80), Color.cyan);
 
-        if (GameManager.Instance.roster != null && GameManager.Instance.roster.classes != null)
-        {
-            int offsetY = 150;
-            foreach (var charClass in GameManager.Instance.roster.classes)
-            {
-                string info = $"{charClass.name} - Vel: {charClass.stats.speed} | Visão: {charClass.stats.visionRadius}";
-                CreateText(currentMenu.transform, info, 30, new Vector2(-150, offsetY), Color.cyan);
-
-                CreateButton(currentMenu.transform, "SELECIONAR", new Vector2(300, offsetY), new Vector2(200, 50), () => {
-                    GameManager.Instance.SetSelectedClass(charClass);
-                    ShowTitleScreen();
-                });
-
-                offsetY -= 80;
+        // 🚨 BOTÃO DE COMPRA: Custa 50 moedas e dá-te +1 Vida permanentemente!
+        CreateButton(currentMenu.transform, "Comprar +1 Vida (50 M)", new Vector2(0, -20), new Vector2(400, 60), () => {
+            if (GameManager.Instance.currentPlayer.wallet.totalCoins >= 50) {
+                // Paga o preço
+                GameManager.Instance.currentPlayer.wallet.totalCoins -= 50;
+                // Recebe o upgrade
+                GameManager.Instance.currentPlayer.stats.maxLives++;
+                GameManager.Instance.currentPlayer.stats.currentLives++; // Dá logo a vida para usar
+                // Guarda o save
+                GameManager.Instance.currentPlayer.Save(System.IO.Path.Combine(Application.dataPath, "..", "player_save.json"));
+                // Atualiza o ecrã para veres o novo saldo
+                ShowVaultScreen();
+            } else {
+                Debug.Log("Dinheiro insuficiente!");
             }
-        }
+        });
 
-        CreateButton(currentMenu.transform, "VOLTAR", new Vector2(0, -400), new Vector2(250, 60), () => {
+        CreateButton(currentMenu.transform, "VOLTAR AO MENU", new Vector2(0, -180), new Vector2(300, 60), () => {
             ShowTitleScreen();
         });
     }
 
-   public void ShowHUD() {
+    public void ShowHUD() {
        ClearCurrentMenu();
        currentState = UIState.HUD;
        // Criamos um painel que ocupa o ecrã todo mas é invisível
@@ -135,7 +153,7 @@ public class UIManager : MonoBehaviour
        // 1. Criar Contentor do Timer (Topo Esquerdo)
        timerText = CreateText(currentMenu.transform, "Tempo: --", 40, new Vector2(100, -50), Color.white);
        RectTransform timerRect = timerText.GetComponent<RectTransform>();
-       timerRect.anchorMin = new Vector2(0, 1); // Canto Superior Esquerdo
+       timerRect.anchorMin = new Vector2(0, 1);
        timerRect.anchorMax = new Vector2(0, 1);
        timerRect.pivot = new Vector2(0, 1);
        timerText.alignment = TextAnchor.UpperLeft;
@@ -143,7 +161,7 @@ public class UIManager : MonoBehaviour
        // 2. Criar Contentor das Moedas (Topo Direito)
        scoreText = CreateText(currentMenu.transform, "Moedas: --", 40, new Vector2(-100, -50), Color.yellow);
        RectTransform scoreRect = scoreText.GetComponent<RectTransform>();
-       scoreRect.anchorMin = new Vector2(1, 1); // Canto Superior Direito
+       scoreRect.anchorMin = new Vector2(1, 1);
        scoreRect.anchorMax = new Vector2(1, 1);
        scoreRect.pivot = new Vector2(1, 1);
        scoreText.alignment = TextAnchor.UpperRight;
@@ -152,11 +170,27 @@ public class UIManager : MonoBehaviour
        string className = GameManager.Instance.selectedClass != null ? GameManager.Instance.selectedClass.name : "Desconhecido";
        classText = CreateText(currentMenu.transform, $"Classe: {className}", 30, new Vector2(100, 50), Color.cyan);
        RectTransform classRect = classText.GetComponent<RectTransform>();
-       classRect.anchorMin = new Vector2(0, 0); // Canto Inferior Esquerdo
+       classRect.anchorMin = new Vector2(0, 0);
        classRect.anchorMax = new Vector2(0, 0);
        classRect.pivot = new Vector2(0, 0);
        classText.alignment = TextAnchor.LowerLeft;
-   }
+
+        // 4. Criar Info do Nível (Topo Centro)
+        levelText = CreateText(currentMenu.transform, "NÍVEL --", 50, new Vector2(0, -50), Color.cyan);
+        RectTransform levelRect = levelText.GetComponent<RectTransform>();
+        levelRect.anchorMin = new Vector2(0.5f, 1);
+        levelRect.anchorMax = new Vector2(0.5f, 1);
+        levelRect.pivot = new Vector2(0.5f, 1);
+        levelText.alignment = TextAnchor.UpperCenter;
+
+        // 🚨 5. NOVO: Criar Info das Vidas (Fundo Direito)
+        livesText = CreateText(currentMenu.transform, "❤️ Vidas: --", 40, new Vector2(-100, 50), Color.red);
+        RectTransform livesRect = livesText.GetComponent<RectTransform>();
+        livesRect.anchorMin = new Vector2(1, 0); // Fica preso ao Canto Inferior Direito
+        livesRect.anchorMax = new Vector2(1, 0);
+        livesRect.pivot = new Vector2(1, 0);
+        livesText.alignment = TextAnchor.LowerRight;
+    }
 
     public void ShowEndScreen(bool victory, string reason) {
         ClearCurrentMenu();

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import os
+import shutil
 from typing import Any, Dict, Optional
 
 from tools.local_tools import (
@@ -41,12 +42,10 @@ TOOLS = {
 # -----------------------------
 TEMPLATES_DIR = os.path.join("templates", "unity")
 
-
 def load_template(filename: str) -> str:
     path = os.path.join(TEMPLATES_DIR, filename)
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
-
 
 # -----------------------------
 # Helpers
@@ -120,7 +119,7 @@ def call_tool(
                     return {"ok": True, "output": f"mkdir ok (idempotent): {path_token}", "data": {"dir": path_token}}
                 except Exception as e:
                     return {"ok": False, "output": f"mkdir error: {e}", "data": None}
-    import shutil
+
     # -----------------------------
     # Unity bindings (last defense)
     # -----------------------------
@@ -175,39 +174,28 @@ def call_tool(
                         with open(manifest_path, "r", encoding="utf-8") as f:
                             manifest_data = json.load(f)
 
-                        # Garante que a secção dependencies existe
                         if "dependencies" not in manifest_data:
                             manifest_data["dependencies"] = {}
 
-                        # Injeta o pacote de UI do Unity!
                         manifest_data["dependencies"]["com.unity.ugui"] = "1.0.0"
 
-                        # Guarda o ficheiro hackeado de volta na pasta
                         with open(manifest_path, "w", encoding="utf-8") as f:
                             json.dump(manifest_data, f, indent=4)
 
                         print("[DEBUG] 💉 Dependência UGUI injetada no manifest.json com sucesso!")
-
                     except Exception as e:
                         print(f"[ERRO] Falha ao injetar dependência no manifest: {e}")
-                else:
-                    print(f"[AVISO] manifest.json não encontrado em {manifest_path}. A pasta Packages já existe?")
-                # 1. Sincronização do Genome (FIX: Injeta se não houver no Build)
-                proj_abs = os.path.abspath(proj)
-                builds_dir = os.path.join(proj_abs, "Builds")
 
-                # 1. Forçar a criação da pasta Builds AGORA
+                # 1. Sincronização de Ficheiros JSON
                 if not os.path.exists(builds_dir):
                     os.makedirs(builds_dir, exist_ok=True)
 
                 json_files = ["level_genome.json", "roster.json", "player_save.json"]
 
                 for json_file in json_files:
-                    # Destinos
                     dest_root = os.path.join(proj_abs, json_file)
                     dest_build = os.path.join(builds_dir, json_file)
 
-                    # Descobrir onde está a Origem (A prioridade é a raiz do workspace)
                     origem = None
                     if os.path.exists(json_file):
                         origem = json_file
@@ -218,51 +206,49 @@ def call_tool(
 
                     if origem:
                         try:
-                            # Copia diretamente o ficheiro (é muito mais seguro que ler/escrever texto)
                             shutil.copy2(origem, dest_root)
                             shutil.copy2(origem, dest_build)
-                            print(f"[DEBUG] {json_file} transportado de '{origem}' para o Unity!")
                         except Exception as e:
                             print(f"[ERRO] Falha ao transportar {json_file}: {e}")
                     else:
-                        print(f"[ERRO CRÍTICO] O template '{json_file}' não foi encontrado na raiz nem na pasta templates!")
+                        print(f"[ERRO CRÍTICO] O template '{json_file}' não foi encontrado!")
 
+                # 2. Injeção de Música
                 music_src = os.path.join("templates", "music", "synthwave_loop.wav")
                 music_dst = os.path.join(music_dir, "synthwave_loop.wav")
+                if os.path.exists(music_src):
+                    shutil.copy2(music_src, music_dst)
 
-                try:
-                    if os.path.exists(music_src):
-                        shutil.copy2(music_src, music_dst)
-                        print(f"[DEBUG] Música injetada em: {music_dst}")
+                # 🚨 NOVO: INJEÇÃO COMPLETA DE SPRITES (Com fundo transparente)
+                sprites_to_copy = ["PlayerSprite.png", "EnemySprite.png"]
+                for spr_file in sprites_to_copy:
+                    src = os.path.join("templates", "sprites", spr_file)
+                    dst = os.path.join(sprite_dir, spr_file)
+                    if os.path.exists(src):
+                        shutil.copy2(src, dst)
+                        print(f"[DEBUG] Sprite IA injetado: {spr_file}")
                     else:
-                        print(f"[AVISO] Ficheiro de música não encontrado em: {music_src}")
-                except Exception as e:
-                    print(f"[ERRO] Falha ao copiar música: {e}")
+                        print(f"[AVISO] Sprite não encontrado em: {src}")
 
-                sprite_src = os.path.join("templates", "sprites", "PlayerSprite.png")
-                sprite_dst = os.path.join(sprite_dir, "PlayerSprite.png") # resources_sprites_dir deve apontar para Assets/Resources/Sprites/
-
-                try:
-                    if os.path.exists(sprite_src):
-                        shutil.copy2(sprite_src, sprite_dst)
-                        print(f"[DEBUG] Sprite IA injetado em: {sprite_dst}")
-                    else:
-                        # Se a IA ainda não gerou nada, podes ter um fallback ou apenas avisar
-                        print(f"[AVISO] Sprite não encontrado em: {sprite_src}. Usando padrão do Unity.")
-                except Exception as e:
-                    print(f"[ERRO] Falha ao copiar sprite: {e}")
-
-                textures_to_copy = ["FloorTexture.png", "ObstacleTexture.png"]
-
+                # 🚨 NOVO: INJEÇÃO COMPLETA DE TEXTURAS (Opacas)
+                textures_to_copy = [
+                    "FloorTexture.png",
+                    "ObstacleTexture.png",
+                    "GoalTexture.png",
+                    "CollectibleTexture.png",
+                    "TrapTexture.png",
+                    "PowerUpTexture.png"
+                ]
                 for tex_file in textures_to_copy:
                     src = os.path.join("templates", "textures", tex_file)
                     dst = os.path.join(textures_dir, tex_file)
-
                     if os.path.exists(src):
-                        import shutil
                         shutil.copy2(src, dst)
                         print(f"[DEBUG] Textura injetada: {tex_file}")
-                # 2. Injeção de Scripts
+                    else:
+                        print(f"[AVISO] Textura não encontrada em: {src}")
+
+                # 3. Injeção de Scripts C#
                 preflight_files = [
                     (os.path.join(editor_dir, "BuildScript.cs"), "BuildScript.cs"),
                     (os.path.join(assets_dir, "SimpleAgent.cs"), "SimpleAgent.cs"),
@@ -308,7 +294,6 @@ def call_tool(
 
         p_norm = _norm_path(args["path"])
 
-        # Lógica de diretórios (mkdir)
         if p_norm.endswith("/") or p_norm.endswith("\\") or p_norm.lower().endswith("/assets/editor"):
             dir_path = os.path.join(tool_context["project_path"], p_norm) if tool_context.get("project_path") else p_norm
             _ensure_dir(dir_path)
@@ -317,7 +302,6 @@ def call_tool(
         if p_norm.lower().startswith("assets/") and tool_context.get("project_path"):
             args["path"] = os.path.join(tool_context["project_path"], p_norm)
 
-        # Overrides automáticos por templates
         final_norm = _norm_path(args["path"]).lower()
         templates_map = {
             "/assets/editor/buildscript.cs": "BuildScript.cs",

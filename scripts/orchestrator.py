@@ -115,13 +115,22 @@ def main():
         return
 
     metrics_data = sim_res["data"]["metrics"]
-    win_rate = metrics_data.get("win_rate", 0.0)
-    played_mode = metrics_data.get("currentMode", "PointToPoint")
+    campaign_completed = metrics_data.get("campaign_completed", False)
 
-    # 🚨 NOVO: Saber EXATAMENTE que nível o Bot acabou de jogar
-    played_level_id = metrics_data.get("level_id", 1)
+    # Se não completou, o nível jogado é onde ele encravou. Se completou, é o 10.
+    played_level_id = metrics_data.get("bottleneck_level", 1) if not campaign_completed else 10
 
-    print(f"[cyan]Simulation completed (Nível {played_level_id} - {played_mode}). Metrics:[/cyan]\n{json.dumps(metrics_data, indent=2)}")
+    # Vamos procurar os dados específicos desse nível na lista de relatórios
+    win_rate = 0.0
+    played_mode = "PointToPoint"
+
+    for rep in metrics_data.get("level_reports", []):
+        if rep.get("level_id") == played_level_id:
+            win_rate = rep.get("win_rate", 0.0)
+            played_mode = rep.get("mode", "PointToPoint")
+            break
+
+    print(f"[cyan]Simulation completed. Gargalo detetado no Nível {played_level_id} ({played_mode}). Win Rate: {win_rate}[/cyan]")
 
     # 4. LER A CAMPANHA INTEIRA (O Array JSON)
     if os.path.exists(campaign_path):

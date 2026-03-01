@@ -1,16 +1,13 @@
 using UnityEngine;
 
-public class Goal : MonoBehaviour
-{
+public class Goal : MonoBehaviour {
     public Vector2Int gridPos;
 
-    void Update()
-    {
+    void Update() {
         if (GameManager.Instance == null || GameManager.Instance.agent == null) return;
-        Debug.Log("GOAL");
         // Se o Agente pisar a mesma célula que o Goal, ganha imediatamente!
-        if (GameManager.Instance.agent.gridPos == gridPos)
-        {
+        if (GameManager.Instance.agent.gridPos == gridPos) {
+            Debug.Log("GOAL");
             GameManager.Instance.OnGoalReached();
             Destroy(gameObject);
         }

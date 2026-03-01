@@ -4,7 +4,7 @@ using System.Collections.Generic;
 public static class LevelSpawner
 {
     private static HashSet<Vector2Int> occupiedCells = new HashSet<Vector2Int>();
-    public static List<Vector2Int> reachableCells = new List<Vector2Int>(); // NOVO: Guarda os caminhos válidos
+    public static List<Vector2Int> reachableCells = new List<Vector2Int>();
 
     public static void ResetSpawns()
     {
@@ -13,7 +13,32 @@ public static class LevelSpawner
     }
 
     // ==========================================
-    // ALGORITMO DE VALIDAÇÃO DE CAMINHO (BREADTH-FIRST SEARCH)
+    // CARREGADOR DE TEXTURAS UNIVERSAL
+    // ==========================================
+    private static Material CreateTexturedMaterial(string textureName, Color fallbackColor) {
+        Texture2D tex = Resources.Load<Texture2D>("Textures/" + textureName);
+        Shader safetyShader = Shader.Find("Unlit/Color");
+        if (safetyShader == null) safetyShader = Shader.Find("Legacy Shaders/VertexLit");
+
+        Material mat = new Material(safetyShader);
+        mat.color = fallbackColor;
+
+        if (tex != null) {
+            mat.mainTexture = tex;
+        }
+        return mat;
+    }
+
+    public static Material CreateSimpleMaterial(Color color) {
+        Shader safetyShader = Shader.Find("Unlit/Color");
+        if (safetyShader == null) safetyShader = Shader.Find("Legacy Shaders/VertexLit");
+        Material mat = new Material(safetyShader);
+        mat.color = color;
+        return mat;
+    }
+
+    // ==========================================
+    // ALGORITMO DE VALIDAÇÃO DE CAMINHO (BFS)
     // ==========================================
     public static void CalculateReachableArea(GridWorld world, Vector2Int startPos) {
         reachableCells.Clear();
@@ -31,7 +56,6 @@ public static class LevelSpawner
 
             foreach (Vector2Int d in dirs) {
                 Vector2Int next = curr + d;
-                // Verifica se está dentro do mapa e se não é uma parede
                 if (next.x >= 0 && next.x < world.Width && next.y >= 0 && next.y < world.Height) {
                     if (!world.IsBlocked(next) && !visited.Contains(next)) {
                         visited.Add(next);
@@ -40,12 +64,10 @@ public static class LevelSpawner
                 }
             }
         }
-        Debug.Log($"[LevelSpawner] Mapeamento concluído. Células alcançáveis: {reachableCells.Count}");
     }
 
     public static Vector2Int GetUniqueSpawnPosition(GridWorld world, System.Random rng)
     {
-        // Se já mapeámos o caminho, OBRIGA a nascer numa área acessível!
         if (reachableCells.Count > 10) {
             for (int i = 0; i < 100; i++) {
                 Vector2Int pos = reachableCells[rng.Next(reachableCells.Count)];
@@ -56,7 +78,6 @@ public static class LevelSpawner
             }
         }
 
-        // Fallback caso a área seja muito pequena ou ainda não tenha sido mapeada
         for (int i = 0; i < 100; i++) {
             Vector2Int pos = world.RandomFreeCell(rng);
             if (!occupiedCells.Contains(pos)) {
@@ -69,7 +90,6 @@ public static class LevelSpawner
 
     public static Vector2Int GetUniqueSpawnPositionFarFrom(GridWorld world, System.Random rng, Vector2Int targetPos, float minDistance)
     {
-        // Força a nascer longe, MAS num sítio que tenha caminho até ti!
         if (reachableCells.Count > 10) {
             for (int i = 0; i < 200; i++) {
                 Vector2Int pos = reachableCells[rng.Next(reachableCells.Count)];
@@ -90,16 +110,16 @@ public static class LevelSpawner
         return GetUniqueSpawnPosition(world, rng);
     }
 
+    // ==========================================
+    // SPAWNERS
+    // ==========================================
     public static SimpleAgent SpawnAgent(GridWorld world, System.Random rng, float moveSpeed, bool isHuman, float visionRadius, string spriteName = "PlayerSprite")
     {
         Vector2Int start = GetUniqueSpawnPosition(world, rng);
         GameObject agentGO = new GameObject("Agent");
 
         Texture2D rawTex = Resources.Load<Texture2D>("Sprites/" + spriteName);
-        if (rawTex == null) {
-            Debug.LogWarning($"[LevelSpawner] Sprite '{spriteName}' não encontrado. A usar PlayerSprite padrão.");
-            rawTex = Resources.Load<Texture2D>("Sprites/PlayerSprite");
-        }
+        if (rawTex == null) rawTex = Resources.Load<Texture2D>("Sprites/PlayerSprite");
 
         Material baseMat = CreateSimpleMaterial(Color.white);
         VoxelRenderer.CreateVoxelSprite(agentGO.transform, rawTex, baseMat);
@@ -133,31 +153,53 @@ public static class LevelSpawner
     }
 
     public static void SpawnEnemies(GridWorld world, System.Random rng, int count, float speed, Vector2Int playerPos, float minSafeDistance)
-        {
-            for (int i = 0; i < count; i++) {
-                // Em vez de GetUniqueSpawnPosition, usamos a nossa função que respeita a distância!
-                Vector2Int pos = GetUniqueSpawnPositionFarFrom(world, rng, playerPos, minSafeDistance);
+    {
+        for (int i = 0; i < count; i++) {
+            Vector2Int pos = GetUniqueSpawnPositionFarFrom(world, rng, playerPos, minSafeDistance);
 
-                GameObject enemy = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                enemy.name = "Chaser_" + i;
-                enemy.GetComponent<Renderer>().material = CreateSimpleMaterial(Color.red);
+            // 🚨 NOVO: INIMIGOS EM VOXELS (3D)!
+            GameObject enemy = new GameObject("Chaser_" + i);
 
-                ChaserAI ai = enemy.AddComponent<ChaserAI>();
-                ai.world = world;
-                ai.gridPos = pos;
-                ai.moveSpeed = speed;
-                enemy.transform.position = world.GridToWorld(pos);
-            }
+            Texture2D rawTex = Resources.Load<Texture2D>("Sprites/EnemySprite");
+            if (rawTex == null) rawTex = Resources.Load<Texture2D>("Sprites/PlayerSprite");
+
+            Material baseMat = CreateSimpleMaterial(Color.white);
+            VoxelRenderer.CreateVoxelSprite(enemy.transform, rawTex, baseMat);
+
+            // Adiciona uma luz vermelha assustadora ao inimigo para o veres aproximar no escuro!
+            GameObject lightObj = new GameObject("EnemyLight");
+            lightObj.transform.SetParent(enemy.transform);
+            lightObj.transform.localPosition = new Vector3(0, 0.5f, 0);
+            Light enemyLight = lightObj.AddComponent<Light>();
+            enemyLight.type = LightType.Point;
+            enemyLight.color = Color.red;
+            enemyLight.intensity = 3.0f;
+            enemyLight.range = 6.0f;
+
+            ChaserAI ai = enemy.AddComponent<ChaserAI>();
+            ai.world = world;
+            ai.gridPos = pos;
+            ai.moveSpeed = speed;
+            enemy.transform.position = world.GridToWorld(pos);
         }
+    }
 
-    // ATUALIZADO: Agora pede a posição do jogador e a distância mínima
     public static void SpawnGoal(GridWorld world, System.Random rng, Vector2Int playerPos, float minDistance)
     {
         Vector2Int p = GetUniqueSpawnPositionFarFrom(world, rng, playerPos, minDistance);
         GameObject goal = GameObject.CreatePrimitive(PrimitiveType.Cube);
         goal.name = "Goal";
-        goal.GetComponent<Renderer>().material = CreateSimpleMaterial(Color.cyan);
+
+        // 🚨 NOVO: APLICA A TEXTURA DA META
+        goal.GetComponent<Renderer>().material = CreateTexturedMaterial("GoalTexture", Color.cyan);
         goal.transform.position = world.GridToWorld(p, 0.5f);
+
+        Light goalLight = goal.AddComponent<Light>();
+        goalLight.type = LightType.Point;
+        goalLight.color = Color.cyan;
+        goalLight.range = 15.0f;
+        goalLight.intensity = 8.0f;
+
         goal.AddComponent<Goal>().gridPos = p;
     }
 
@@ -165,13 +207,24 @@ public static class LevelSpawner
     {
         for (int i = 0; i < count; i++) {
             Vector2Int p = GetUniqueSpawnPosition(world, rng);
-            GameObject coin = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            // Passou de Esfera para Cubo para mapear a textura perfeitamente
+            GameObject coin = GameObject.CreatePrimitive(PrimitiveType.Cube);
             coin.name = "Collectible";
             coin.tag = "Collectible";
             coin.transform.position = world.GridToWorld(p, 0.3f);
             coin.transform.localScale = Vector3.one * 0.5f;
-            coin.GetComponent<Renderer>().material.color = Color.yellow;
+
+            // 🚨 NOVO: APLICA A TEXTURA DA MOEDA
+            coin.GetComponent<Renderer>().material = CreateTexturedMaterial("CollectibleTexture", Color.yellow);
+
+            Light coinLight = coin.AddComponent<Light>();
+            coinLight.type = LightType.Point;
+            coinLight.color = Color.yellow;
+            coinLight.range = 8.0f;
+            coinLight.intensity = 5.0f;
+
             coin.AddComponent<Collectible>().gridPos = p;
+            coin.AddComponent<ItemAnimate>(); // Adiciona animação de rotação!
         }
     }
 
@@ -181,16 +234,17 @@ public static class LevelSpawner
             Vector2Int p = GetUniqueSpawnPosition(world, rng);
             PowerUpType selectedType = (rng.Next(0, 2) == 0) ? PowerUpType.Time : PowerUpType.Speed;
 
-            GameObject item = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            GameObject item = GameObject.CreatePrimitive(PrimitiveType.Cube);
             item.name = "PowerUp_" + selectedType;
             item.tag = "Collectible";
 
             Color col = (selectedType == PowerUpType.Time) ? Color.blue : Color.magenta;
-            item.GetComponent<Renderer>().material = CreateSimpleMaterial(col);
+
+            // 🚨 NOVO: APLICA A TEXTURA DO POWERUP
+            item.GetComponent<Renderer>().material = CreateTexturedMaterial("PowerUpTexture", col);
 
             item.transform.position = world.GridToWorld(p, 0.5f);
-            item.transform.localScale = new Vector3(0.5f, 0.1f, 0.5f);
-            item.transform.rotation = Quaternion.Euler(90, 0, 0);
+            item.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
 
             PowerUp script = item.AddComponent<PowerUp>();
             script.type = selectedType;
@@ -209,7 +263,8 @@ public static class LevelSpawner
             trapObj.name = "Trap";
             trapObj.tag = "Collectible";
 
-            trapObj.GetComponent<Renderer>().material = CreateSimpleMaterial(new Color(0.8f, 0.2f, 0.2f));
+            // 🚨 NOVO: APLICA A TEXTURA DA ARMADILHA
+            trapObj.GetComponent<Renderer>().material = CreateTexturedMaterial("TrapTexture", new Color(0.8f, 0.2f, 0.2f));
             trapObj.transform.position = world.GridToWorld(p, 0.05f);
             trapObj.transform.localScale = new Vector3(0.8f, 0.1f, 0.8f);
 
@@ -217,13 +272,5 @@ public static class LevelSpawner
             script.gridPos = p;
             script.penalty = penalty;
         }
-    }
-
-    private static Material CreateSimpleMaterial(Color color) {
-        Shader safetyShader = Shader.Find("Unlit/Color");
-        if (safetyShader == null) safetyShader = Shader.Find("Legacy Shaders/VertexLit");
-        Material mat = new Material(safetyShader);
-        mat.color = color;
-        return mat;
     }
 }
