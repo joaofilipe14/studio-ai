@@ -1,23 +1,19 @@
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEditor.SceneManagement;
 using UnityEngine.SceneManagement;
 using System.IO;
 
-public static class BuildScript
-{
-static void EnsureTagsExist()
-    {
+public class BuildScript {
+    static void EnsureTagsExist() {
         SerializedObject tagManager = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
         SerializedProperty tagsProp = tagManager.FindProperty("tags");
 
         string[] tagsToEnsure = { "Collectible", "Player" };
 
-        foreach (string tagName in tagsToEnsure)
-        {
+        foreach (string tagName in tagsToEnsure) {
             bool found = false;
-            for (int i = 0; i < tagsProp.arraySize; i++)
-            {
+            for (int i = 0; i < tagsProp.arraySize; i++) {
                 if (tagsProp.GetArrayElementAtIndex(i).stringValue == tagName)
                 {
                     found = true;
@@ -25,8 +21,7 @@ static void EnsureTagsExist()
                 }
             }
 
-            if (!found)
-            {
+            if (!found) {
                 tagsProp.InsertArrayElementAtIndex(tagsProp.arraySize);
                 tagsProp.GetArrayElementAtIndex(tagsProp.arraySize - 1).stringValue = tagName;
             }
@@ -34,70 +29,49 @@ static void EnsureTagsExist()
         tagManager.ApplyModifiedProperties();
     }
 
-    public static void MakeBuild()
-    {
+    public static void MakeBuild() {
         EnsureTagsExist();
-        Directory.CreateDirectory("Assets/Scenes");
-        Directory.CreateDirectory("Builds");
+        // 1. Criar uma nova cena limpa
+        Scene newScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-        var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        RenderSettings.skybox = null;
-        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-        RenderSettings.ambientLight = Color.black;
-        // Camera
-        var camGO = new GameObject("Main Camera");
-        camGO.tag = "MainCamera";
-        camGO.transform.position = new Vector3(0, 16f, -18f);
-        camGO.transform.rotation = Quaternion.Euler(45f, 0f, 0f);
-        var cam = camGO.AddComponent<Camera>();
-        cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.backgroundColor = Color.black;
-        var lightGO = new GameObject("Directional Light");
-                var light = lightGO.AddComponent<Light>();
-                light.type = LightType.Directional;
-                lightGO.transform.rotation = Quaternion.Euler(50, -30, 0);
-        // GameManager
-        var gmGO = new GameObject("GameManager");
-        var gm = gmGO.AddComponent<GameManager>();
+        // 2. Configurar a Câmara Principal
+        GameObject camObj = new GameObject("Main Camera");
+        camObj.tag = "MainCamera";
+        Camera cam = camObj.AddComponent<Camera>();
+        cam.transform.position = new Vector3(0, 15, -10);
+        cam.transform.rotation = Quaternion.Euler(60, 0, 0);
 
-        // CONFIG base (muda aqui se quiseres)
-        gm.gridWidth = 17;
-        gm.gridHeight = 17;
-        gm.cellSize = 1.0f;
+        // 3. Configurar uma Luz Global (Directional Light)
+        GameObject lightObj = new GameObject("Directional Light");
+        Light light = lightObj.AddComponent<Light>();
+        light.type = LightType.Directional;
+        light.transform.rotation = Quaternion.Euler(50, -30, 0);
+        light.intensity = 0.8f; // Luz suave para a lanterna do jogador sobressair
 
-        gm.seed = (int)System.DateTime.UtcNow.Ticks; // random por build
-        gm.obstacles = 28;
-        gm.collectibles = 5;
-        gm.buildBorderWalls = true;
+        // 4. Instanciar o nosso novo e limpo GameManager
+        GameObject gmObj = new GameObject("GameController");
+        GameManager gm = gmObj.AddComponent<GameManager>();
 
-        gm.timeLimit = 25f;
-        gm.rounds = 5;
+        // (Removemos as atribuições antigas de obstacles, buildBorderWalls, etc.,
+        // porque agora o LoadGenomeConfig() trata de tudo no Awake do GameManager)
 
-        gm.agentMoveSpeed = 4.5f;
-        gm.userControl = false;
-
-        gm.spawnChaser = true;
-        gm.chaserMoveSpeed = 3.5f;
-
-        // Save scene
-        EditorSceneManager.SaveScene(scene, "Assets/Scenes/Main.unity");
-
-        // Build settings
-        EditorBuildSettings.scenes = new[]
+        // 5. Guardar a cena no projeto
+        string sceneDir = "Assets/Scenes";
+        if (!Directory.Exists(sceneDir))
         {
-            new EditorBuildSettingsScene("Assets/Scenes/Main.unity", true)
-        };
+            Directory.CreateDirectory(sceneDir);
+        }
+        string scenePath = sceneDir + "/MainScene.unity";
+        EditorSceneManager.SaveScene(newScene, scenePath);
 
-        // Build
-        var exePath = Path.Combine("Builds", "Game001.exe");
-        var report = BuildPipeline.BuildPlayer(
-            new[] { "Assets/Scenes/Main.unity" },
-            exePath,
-            BuildTarget.StandaloneWindows64,
-            BuildOptions.None
-        );
+        // 6. Configurar as opções de Build do Executável (.exe)
+        BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions();
+        buildPlayerOptions.scenes = new[] { scenePath };
+        buildPlayerOptions.locationPathName = "Builds/Game001.exe"; // Onde o Runner vai procurar!
+        buildPlayerOptions.target = BuildTarget.StandaloneWindows64;
+        buildPlayerOptions.options = BuildOptions.None;
 
-        EditorApplication.Exit(report.summary.result ==
-            UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
+        // 7. Mandar compilar!
+        BuildPipeline.BuildPlayer(buildPlayerOptions);
     }
 }

@@ -1,7 +1,6 @@
 from __future__ import annotations
-
-import os
 import json
+import os
 from typing import Any, Dict, Optional
 
 from tools.local_tools import (
@@ -121,7 +120,7 @@ def call_tool(
                     return {"ok": True, "output": f"mkdir ok (idempotent): {path_token}", "data": {"dir": path_token}}
                 except Exception as e:
                     return {"ok": False, "output": f"mkdir error: {e}", "data": None}
-
+    import shutil
     # -----------------------------
     # Unity bindings (last defense)
     # -----------------------------
@@ -160,6 +159,7 @@ def call_tool(
                 editor_dir = os.path.join(assets_dir, "Editor")
                 music_dir = os.path.join(assets_dir, "Resources", "Music")
                 sprite_dir = os.path.join(assets_dir, "Resources", "Sprites")
+                textures_dir = os.path.join(assets_dir, "Resources", "Textures")
                 builds_dir = os.path.join(proj_abs, "Builds")
 
                 _ensure_dir(assets_dir)
@@ -167,7 +167,31 @@ def call_tool(
                 _ensure_dir(sprite_dir)
                 _ensure_dir(music_dir)
                 _ensure_dir(builds_dir)
+                _ensure_dir(textures_dir)
 
+                manifest_path = os.path.join(proj_abs, "Packages", "manifest.json")
+                if os.path.exists(manifest_path):
+                    try:
+                        with open(manifest_path, "r", encoding="utf-8") as f:
+                            manifest_data = json.load(f)
+
+                        # Garante que a secção dependencies existe
+                        if "dependencies" not in manifest_data:
+                            manifest_data["dependencies"] = {}
+
+                        # Injeta o pacote de UI do Unity!
+                        manifest_data["dependencies"]["com.unity.ugui"] = "1.0.0"
+
+                        # Guarda o ficheiro hackeado de volta na pasta
+                        with open(manifest_path, "w", encoding="utf-8") as f:
+                            json.dump(manifest_data, f, indent=4)
+
+                        print("[DEBUG] 💉 Dependência UGUI injetada no manifest.json com sucesso!")
+
+                    except Exception as e:
+                        print(f"[ERRO] Falha ao injetar dependência no manifest: {e}")
+                else:
+                    print(f"[AVISO] manifest.json não encontrado em {manifest_path}. A pasta Packages já existe?")
                 # 1. Sincronização do Genome (FIX: Injeta se não houver no Build)
                 proj_abs = os.path.abspath(proj)
                 builds_dir = os.path.join(proj_abs, "Builds")
@@ -176,37 +200,38 @@ def call_tool(
                 if not os.path.exists(builds_dir):
                     os.makedirs(builds_dir, exist_ok=True)
 
-                genome_root = os.path.join(proj_abs, "game_genome.json")
-                genome_build = os.path.join(builds_dir, "game_genome.json")
+                json_files = ["level_genome.json", "roster.json", "player_save.json"]
 
-                try:
-                    # Tenta ler o genoma que o Python gerou na raiz do workspace
-                    if os.path.exists("game_genome.json"):
-                        with open("game_genome.json", "r", encoding="utf-8") as f:
-                            content = f.read()
+                for json_file in json_files:
+                    # Destinos
+                    dest_root = os.path.join(proj_abs, json_file)
+                    dest_build = os.path.join(builds_dir, json_file)
+
+                    # Descobrir onde está a Origem (A prioridade é a raiz do workspace)
+                    origem = None
+                    if os.path.exists(json_file):
+                        origem = json_file
+                    elif os.path.exists(os.path.join("templates", "unity", json_file)):
+                        origem = os.path.join("templates", "unity", json_file)
+                    elif os.path.exists(os.path.join("templates", "json", json_file)):
+                        origem = os.path.join("templates", "json", json_file)
+
+                    if origem:
+                        try:
+                            # Copia diretamente o ficheiro (é muito mais seguro que ler/escrever texto)
+                            shutil.copy2(origem, dest_root)
+                            shutil.copy2(origem, dest_build)
+                            print(f"[DEBUG] {json_file} transportado de '{origem}' para o Unity!")
+                        except Exception as e:
+                            print(f"[ERRO] Falha ao transportar {json_file}: {e}")
                     else:
-                        # Se não existir na raiz do workspace, usa o template
-                        content = load_template("game_genome.json")
-
-                    # ESCREVE NA RAIZ DO PROJETO (Para o Unity não dar erro no BuildScript)
-                    with open(genome_root, "w", encoding="utf-8") as f:
-                        f.write(content)
-
-                    # ESCREVE NA PASTA BUILDS (Para o play.py e o .exe)
-                    with open(genome_build, "w", encoding="utf-8") as f:
-                        f.write(content)
-
-                    print(f"[DEBUG] Genome injetado com sucesso em: {genome_build}")
-
-                except Exception as e:
-                    print(f"[ERRO] Falha ao injetar genoma: {e}")
+                        print(f"[ERRO CRÍTICO] O template '{json_file}' não foi encontrado na raiz nem na pasta templates!")
 
                 music_src = os.path.join("templates", "music", "synthwave_loop.wav")
                 music_dst = os.path.join(music_dir, "synthwave_loop.wav")
 
                 try:
                     if os.path.exists(music_src):
-                        import shutil
                         shutil.copy2(music_src, music_dst)
                         print(f"[DEBUG] Música injetada em: {music_dst}")
                     else:
@@ -219,7 +244,6 @@ def call_tool(
 
                 try:
                     if os.path.exists(sprite_src):
-                        import shutil
                         shutil.copy2(sprite_src, sprite_dst)
                         print(f"[DEBUG] Sprite IA injetado em: {sprite_dst}")
                     else:
@@ -227,6 +251,17 @@ def call_tool(
                         print(f"[AVISO] Sprite não encontrado em: {sprite_src}. Usando padrão do Unity.")
                 except Exception as e:
                     print(f"[ERRO] Falha ao copiar sprite: {e}")
+
+                textures_to_copy = ["FloorTexture.png", "ObstacleTexture.png"]
+
+                for tex_file in textures_to_copy:
+                    src = os.path.join("templates", "textures", tex_file)
+                    dst = os.path.join(textures_dir, tex_file)
+
+                    if os.path.exists(src):
+                        import shutil
+                        shutil.copy2(src, dst)
+                        print(f"[DEBUG] Textura injetada: {tex_file}")
                 # 2. Injeção de Scripts
                 preflight_files = [
                     (os.path.join(editor_dir, "BuildScript.cs"), "BuildScript.cs"),
@@ -241,6 +276,9 @@ def call_tool(
                     (os.path.join(assets_dir, "ItemAnimate.cs"), "ItemAnimate.cs"),
                     (os.path.join(assets_dir, "Trap.cs"), "Trap.cs"),
                     (os.path.join(assets_dir, "CameraController.cs"), "CameraController.cs"),
+                    (os.path.join(assets_dir, "LevelSpawner.cs"), "LevelSpawner.cs"),
+                    (os.path.join(assets_dir, "VoxelRenderer.cs"), "VoxelRenderer.cs"),
+                    (os.path.join(assets_dir, "UIManager.cs"), "UIManager.cs"),
                 ]
 
                 for dst, tmpl in preflight_files:
@@ -293,7 +331,10 @@ def call_tool(
             "/assets/powerup.cs": "PowerUp.cs",
             "/assets/itemanimate.cs": "ItemAnimate.cs",
             "/assets/trap.cs": "Trap.cs",
-            "/assets/cameracontroller.cs": "CameraController.cs"
+            "/assets/cameracontroller.cs": "CameraController.cs",
+            "/assets/voxelrenderer.cs": "VoxelRenderer.cs",
+            "/assets/levelspawner.cs": "LevelSpawner.cs",
+            "/assets/uimanager.cs": "UIManager.cs"
         }
 
         for path_suffix, tmpl_name in templates_map.items():

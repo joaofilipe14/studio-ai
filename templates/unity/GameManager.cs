@@ -1,101 +1,286 @@
 using UnityEngine;
 using System.Collections.Generic;
-using System.IO; // Necessário para gravar o ficheiro de métricas
+using System.IO;
 
 [System.Serializable]
-public class GameMetrics
+public class LevelReport
 {
+    public int level_id;
+    public string mode;
     public int total_rounds;
     public int wins;
-    public int timeouts;
-    public int stuck_events;
     public float win_rate;
     public float avg_time_to_goal;
-    public string currentMode;
-    public int total_collected;
-    public int traps_hit;
+    public int stuck_events;
+}
+
+[System.Serializable]
+public class CampaignMetrics
+{
+    public bool campaign_completed; // Chegou ao fim do nível 10?
+    public int bottleneck_level;
     public bool is_human;
+    public List<LevelReport> level_reports = new List<LevelReport>();
 }
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
-    private GameGenome currentGenome;
 
-    [Header("Configurações de Grelha (BuildScript)")]
+    // ==========================================
+    // SISTEMA DE CAMPANHA (NOVO!)
+    // ==========================================
+    public List<LevelGenome> campaignData = new List<LevelGenome>();
+    public int currentLevelIndex = 0; // Controla em que nível da array estamos
+
+    // Propriedade que devolve sempre o nível correto
+    public LevelGenome currentLevel {
+        get {
+            if (campaignData != null && currentLevelIndex < campaignData.Count)
+                return campaignData[currentLevelIndex];
+            return null;
+        }
+    }
+
+    public PlayerSave currentPlayer { get; private set; }
+    public CharacterClass selectedClass { get; private set; }
+    public Roster roster { get; private set; }
+
+    [Header("Configurações de Grelha")]
     public int gridWidth = 15;
     public int gridHeight = 15;
     public float cellSize = 1f;
-    public int obstacles = 25;
     public int collectibles = 5;
-    public bool buildBorderWalls = true;
 
     [Header("Regras de Jogo")]
     public int seed;
     public float timeLimit = 25f;
-    private float currentTimer; // Timer interno para não gastar a config original
-    public int rounds = 5;
-    private int currentRound = 0; // Contador de rondas atual
+    public float currentTimer;
+    public int rounds = 30; // Limite de tentativas globais de segurança para o Bot
+    private int totalAttempts = 0;
     public bool finished;
+    public bool isPlaying = false;
+
     [Header("Progresso da Ronda")]
     public string currentMode = "PointToPoint";
-    private int collectedInRound = 0;
+    public int collectedInRound = 0;
 
     [Header("Agente e Inimigo")]
     public float agentMoveSpeed = 4.5f;
-    public bool userControl = false;
-    public bool spawnChaser = true;
+    public bool userControl = true;
     public float chaserMoveSpeed = 3.5f;
+
     [Header("Power-ups")]
     public float timeBoostAmount = 5f;
     public float speedBoostMultiplier = 1.5f;
     public float speedBoostDuration = 3f;
+
     [Header("Métricas Internas")]
     private int winsCount = 0;
     private int timeoutsCount = 0;
     private int stuckCount = 0;
     public int trapsHitCount = 0;
     private int totalCollectedGame = 0;
-    private List<float> winTimes = new List<float>(); // Lista para calcular avg_time_to_goal
-    [Header("Obstáculos")]
-    public float obsMinScale = 1.0f;
-    public float obsMaxScale = 1.0f;
+    private float totalPlayTime = 0f;
+
+    [Header("Relatório Global")]
+    public CampaignMetrics globalMetrics = new CampaignMetrics();
+
     [Header("Referências")]
     public GridWorld world;
     public SimpleAgent agent;
-    private HashSet<Vector2Int> occupiedCells = new HashSet<Vector2Int>();
+
+    [Header("Regras da Campanha")]
+    public int botMaxAttempts = 10; // O Bot tem mais margem para testar exaustivamente
+    public int currentLevelAttempts = 0;
 
     void Awake() {
         if (Instance == null) Instance = this;
+        if (gameObject.GetComponent<UIManager>() == null) gameObject.AddComponent<UIManager>();
         LoadGenomeConfig();
     }
 
-    void Start() {
-        StartNewRun();
-        SetupAudio();
-    }
+    void Start() { }
 
-    public void StartNewRun()
-    {
-        currentRound++;
-        if (currentRound > rounds) {
-            QuitGame();
-            return;
-        }
+    public void StartNewRun() {
+        totalAttempts++;
+        if (totalAttempts > rounds || currentLevel == null) { QuitGame(); return; }
 
         finished = false;
+        isPlaying = true;
         collectedInRound = 0;
-        currentTimer = timeLimit; // Reinicia o cronómetro para a nova ronda
+
+        // 🚨 IMPORTANTE: Agora precisamos de ir buscar os dados ao Nível Atual todas as vezes,
+        // porque a cada vitória passamos para um índice novo no Array!
+        currentMode = currentLevel.mode;
+        timeLimit = currentLevel.rules.timeLimit;
+        if (timeLimit <= 0.1f) timeLimit = 30f;
+        collectibles = currentLevel.rules.targetCount;
+        chaserMoveSpeed = currentLevel.rules.enemySpeed;
+        gridWidth = (int)(currentLevel.arena.halfSize * 2);
+        gridHeight = (int)(currentLevel.arena.halfSize * 2);
+        seed = currentLevel.seed;
+        agentMoveSpeed = selectedClass.stats.speed;
+
+        currentTimer = timeLimit;
+
+        Debug.Log($"A iniciar Nível {currentLevel.level_id} | Modo: {currentMode} | Obstáculos: {currentLevel.obstacles.count}");
+
+        if (!Application.isBatchMode && GameObject.Find("BackgroundMusic") == null) SetupAudio();
 
         if (world == null) world = gameObject.AddComponent<GridWorld>();
 
-        int activeSeed = (currentGenome.seed == 0) ? (int)System.DateTime.UtcNow.Ticks : currentGenome.seed;
-        int obstaclesToSpawn = currentGenome.obstacles.count;
-        world.Build(gridWidth, gridHeight, cellSize, obstaclesToSpawn, activeSeed);
+        // Usamos a semente exata do genome + total de tentativas para não repetir labirintos se morreres
+        int activeSeed = seed + totalAttempts;
+        world.Build(gridWidth, gridHeight, cellSize, currentLevel.obstacles.count, activeSeed);
 
         CleanupScene();
         BuildFloorAndObstacles();
-        SpawnEntities();
+
+        System.Random rng = new System.Random(activeSeed);
+        LevelSpawner.ResetSpawns();
+
+        float vRadius = selectedClass != null ? selectedClass.stats.visionRadius : 8.0f;
+        string spriteToLoad = selectedClass != null ? selectedClass.spriteName : "PlayerSprite";
+       agent = LevelSpawner.SpawnAgent(world, rng, agentMoveSpeed, userControl, vRadius, spriteToLoad);
+
+       // 🚨 NOVO: Mapeia o labirinto a partir dos pés do jogador!
+       LevelSpawner.CalculateReachableArea(world, agent.gridPos);
+
+       // --- CÁLCULO DE DISTÂNCIAS ---
+       float minGoalDistance = Mathf.Max(gridWidth, gridHeight) * 0.4f;
+       float minEnemySafeDistance = Mathf.Max(gridWidth, gridHeight) * 0.3f;
+
+        if (currentLevel.rules.enemyCount > 0)
+            LevelSpawner.SpawnEnemies(world, rng, currentLevel.rules.enemyCount, chaserMoveSpeed, agent.gridPos, minEnemySafeDistance);
+
+        if (currentMode == "PointToPoint")
+            LevelSpawner.SpawnGoal(world, rng, agent.gridPos, minGoalDistance);
+        else
+            LevelSpawner.SpawnCollectibles(world, rng, collectibles);
+
+        if (currentLevel.rules.powerUpCount > 0)
+            LevelSpawner.SpawnPowerUps(world, rng, currentLevel.rules.powerUpCount);
+
+        if (currentLevel.rules.trapCount > 0)
+            LevelSpawner.SpawnTraps(world, rng, currentLevel.rules.trapCount, currentLevel.rules.trapPenalty);
+    }
+
+    public void SetSelectedClass(CharacterClass newClass) {
+        selectedClass = newClass;
+        if (currentPlayer != null && currentPlayer.loadout != null) {
+            currentPlayer.loadout.selectedClassID = newClass.id;
+            string savePath = Path.Combine(Application.dataPath, "..", "player_save.json");
+            currentPlayer.Save(savePath);
+        }
+    }
+
+    void BuildFloorAndObstacles() {
+        var floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
+        floor.name = "Floor";
+        floor.GetComponent<Renderer>().material = CreateEnvironmentMaterial("FloorTexture", new Color(0.2f, 0.2f, 0.2f));
+
+        float sizeX = gridWidth * cellSize;
+        float sizeZ = gridHeight * cellSize;
+        floor.transform.localScale = new Vector3(sizeX / 10f, 1, sizeZ / 10f);
+
+        float centerX = (sizeX / 2f) - (cellSize / 2f);
+        float centerZ = (sizeZ / 2f) - (cellSize / 2f);
+        floor.transform.position = new Vector3(centerX, 0, centerZ);
+
+        Material obsMat = CreateEnvironmentMaterial("ObstacleTexture", new Color(0.4f, 0.4f, 0.6f));
+
+        for (int x = 0; x < world.Width; x++) {
+            for (int z = 0; z < world.Height; z++) {
+                if (world.IsBlocked(new Vector2Int(x, z))) {
+                    var obs = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    obs.name = "Obstacle_" + x + "_" + z;
+                    obs.GetComponent<Renderer>().material = obsMat;
+
+                    System.Random rng = new System.Random(seed + x + z);
+                    float randomScale = (float)rng.NextDouble() * (currentLevel.obstacles.maxScale - currentLevel.obstacles.minScale) + currentLevel.obstacles.minScale;
+
+                    obs.transform.localScale = new Vector3(0.9f * cellSize, randomScale, 0.9f * cellSize);
+                    obs.transform.position = world.GridToWorld(new Vector2Int(x, z), randomScale / 2f);
+                }
+            }
+        }
+    }
+
+    Material CreateEnvironmentMaterial(string textureName, Color fallbackColor) {
+        // 1. Volta a carregar a tua imagem da pasta Resources/Textures/
+        Texture2D tex = Resources.Load<Texture2D>("Textures/" + textureName);
+
+        // 2. Usamos o shader Standard (que aceita texturas e cores)
+         Shader safetyShader = Shader.Find("Unlit/Color");
+         if (safetyShader == null) safetyShader = Shader.Find("Legacy Shaders/VertexLit");
+        Material mat = new Material(safetyShader);
+
+        // 3. Aplica as cores do tema Cyberpunk como "Tinta" por cima da textura
+        if (currentLevel != null && currentLevel.theme == "Cyberpunk Neon") {
+            if (textureName == "FloorTexture") ColorUtility.TryParseHtmlString("#111111", out fallbackColor); // Cinza muito escuro
+            else if (textureName == "ObstacleTexture") ColorUtility.TryParseHtmlString("#00ffff", out fallbackColor); // Ciano
+        }
+
+        mat.color = fallbackColor;
+
+        // 4. Se a textura existir, aplica-a!
+        if (tex != null) {
+            mat.mainTexture = tex;
+            // Repete a textura do chão para não ficar esticada e borrada num mapa gigante
+            if (textureName == "FloorTexture") {
+                mat.mainTextureScale = new Vector2(gridWidth / 4f, gridHeight / 4f);
+            }
+        }
+
+        mat.SetFloat("_Glossiness", 0.2f); // Um bocadinho de reflexo para o estilo Neon
+        return mat;
+    }
+
+    void LoadGenomeConfig() {
+        // AGORA LÊ A CAMPANHA INTEIRA!
+        string campaignPath = Path.Combine(Application.dataPath, "..", "level_genome.json");
+        string rosterPath = Path.Combine(Application.dataPath, "..", "roster.json");
+        string savePath = Path.Combine(Application.dataPath, "..", "player_save.json");
+
+        roster = Roster.Load(rosterPath);
+        currentPlayer = PlayerSave.Load(savePath);
+
+        if (File.Exists(campaignPath)) {
+            string json = File.ReadAllText(campaignPath);
+            LevelGenome[] loadedLevels = JsonHelper.FromJson<LevelGenome>(json);
+            if (loadedLevels != null && loadedLevels.Length > 0) {
+                campaignData = new List<LevelGenome>(loadedLevels);
+            }
+        }
+
+        // Blindagem de Emergência
+        if (campaignData.Count == 0) {
+            Debug.LogWarning("campaign.json não encontrado! A usar Nível de Emergência.");
+            campaignData.Add(new LevelGenome {
+                level_id = 1, mode = "PointToPoint", theme = "Cyberpunk Neon", seed = 1234,
+                arena = new LevelArena { halfSize = 10f, walls = true },
+                obstacles = new LevelObstacles { count = 50, minScale = 1f, maxScale = 1.5f },
+                rules = new LevelRules { timeLimit = 60f, targetCount = 1, enemyCount = 1, enemySpeed = 2f }
+            });
+        }
+
+        if (roster != null && currentPlayer != null && currentPlayer.loadout != null)
+            selectedClass = roster.classes.Find(c => c.id == currentPlayer.loadout.selectedClassID);
+
+        if (selectedClass == null) {
+            selectedClass = new CharacterClass {
+                name = "Desconhecido", spriteName = "PlayerSprite",
+                stats = new CharacterStats { speed = 6f, acceleration = 12f, visionRadius = 8f, trapResistance = 1f }
+            };
+        }
+        if (currentPlayer != null && campaignData.Count > 0) {
+            // Se o save diz que estamos no Nível 2 (currentCampaignLevel = 2), o index tem de ser 1.
+            currentLevelIndex = Mathf.Clamp(currentPlayer.currentCampaignLevel - 1, 0, campaignData.Count - 1);
+            Debug.Log($"[Save Loaded] A arrancar a Campanha no Index {currentLevelIndex} (Nível {currentPlayer.currentCampaignLevel})");
+        }
+
+        userControl = !Application.isBatchMode;
     }
 
     void SetupAudio() {
@@ -108,262 +293,10 @@ public class GameManager : MonoBehaviour
         source.Play();
     }
 
-    void LoadGenomeConfig()
-    {
-        // Caminho para o ficheiro JSON (normalmente na pasta do projeto)
-        string path = Path.Combine(Application.dataPath, "..", "game_genome.json");
-        GameGenomeCollection collection = GameGenomeCollection.Load(path);
-
-        userControl = collection.userControl;
-        string activeModeName = string.IsNullOrEmpty(collection.mode) ? "PointToPoint" : collection.mode;
-        currentGenome = collection.GetConfig(activeModeName);
-
-        currentMode = currentGenome.mode;
-        timeLimit = currentGenome.rules.timeLimit;
-        rounds = currentGenome.rules.rounds;
-        collectibles = currentGenome.rules.targetCount;
-        agentMoveSpeed = currentGenome.agent.speed;
-        chaserMoveSpeed = currentGenome.rules.enemySpeed;
-        spawnChaser = chaserMoveSpeed > 0;
-        obsMinScale = currentGenome.obstacles.minScale;
-        obsMaxScale = currentGenome.obstacles.maxScale;
-        // Ajusta o grid com base no tamanho da arena do Genome
-        gridWidth = (int)(currentGenome.arena.halfSize * 2);
-        gridHeight = (int)(currentGenome.arena.halfSize * 2);
-    }
-
-    Vector2Int GetUniqueSpawnPosition(System.Random rng)
-    {
-        for (int i = 0; i < 100; i++) {
-            Vector2Int pos = world.RandomFreeCell(rng);
-            // Se a célula ainda não estiver ocupada por uma entidade
-            if (!occupiedCells.Contains(pos)) {
-                occupiedCells.Add(pos); // Marca como ocupada
-                return pos;
-            }
-        }
-        // Fallback: Se o mapa estiver tão cheio que não encontra espaço (muito raro)
-        return world.RandomFreeCell(rng);
-    }
-
-    void OnGUI() {
-        GUI.Box(new Rect(10, 10, 250, 135), "ESTADO DA SIMULAÇÃO");
-        GUI.Label(new Rect(20, 35, 230, 25), $"Modo: {currentMode}");
-        GUI.Label(new Rect(20, 55, 230, 25), $"Ronda: {currentRound} / {rounds}");
-        GUI.Label(new Rect(20, 75, 230, 25), $"Tempo: {currentTimer:F1}s");
-        if (currentMode == "Collect") {
-            GUI.Label(new Rect(20, 95, 230, 25), $"Moedas: {collectedInRound} / {collectibles}");
-        } else if (currentMode == "PointToPoint") {
-            GUI.Label(new Rect(20, 95, 230, 25), "Objetivo: Chegar à Meta!");
-        }
-        GUI.Label(new Rect(20, 115, 230, 25), $"Vitórias: {winsCount}");
-        string textoControlo = userControl ? "Manual (Jogador)" : "IA (Automático)";
-        GUI.Label(new Rect(20, 135, 230, 25), $"Controlo: {textoControlo}");
-    }
-
-    void BuildFloorAndObstacles() {
-        var floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
-        floor.name = "Floor";
-        floor.GetComponent<Renderer>().material = CreateSimpleMaterial(new Color(0.2f, 0.2f, 0.2f));
-        floor.transform.localScale = new Vector3(gridWidth * cellSize / 10f, 1, gridHeight * cellSize / 10f);
-        floor.transform.position = Vector3.zero;
-
-        Material obsMat = CreateSimpleMaterial(new Color(0.4f, 0.4f, 0.6f));
-        for (int x = 0; x < world.Width; x++) {
-            for (int z = 0; z < world.Height; z++) {
-                if (world.IsBlocked(new Vector2Int(x, z))) {
-                    var obs = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    obs.name = "Obstacle_" + x + "_" + z;
-                    obs.GetComponent<Renderer>().material = obsMat;
-                    System.Random rng = new System.Random(seed);
-                    float randomScale = (float)rng.NextDouble() * (obsMaxScale - obsMinScale) + obsMinScale;
-                    obs.transform.localScale = new Vector3(0.9f, randomScale, 0.9f);
-                    obs.transform.position = world.GridToWorld(new Vector2Int(x, z), randomScale / 2f);
-                }
-            }
-        }
-    }
-
-    void SpawnEntities() {
-         System.Random rng = new System.Random(seed);
-         occupiedCells.Clear();
-         Vector2Int start = GetUniqueSpawnPosition(rng);
-
-         // 1. Criar o objeto pai do Agente
-         GameObject agentGO = new GameObject("Agent");
-
-         // 2. Carregar a textura original do Resources
-         Texture2D rawTex = Resources.Load<Texture2D>("Sprites/PlayerSprite");
-
-         // --- SOLUÇÃO PARA O ERRO DE LEITURA ---
-         // Criamos uma textura temporária que permite leitura (Read/Write)
-         RenderTexture rt = RenderTexture.GetTemporary(rawTex.width, rawTex.height, 0, RenderTextureFormat.Default, RenderTextureReadWrite.Linear);
-         Graphics.Blit(rawTex, rt);
-         RenderTexture previous = RenderTexture.active;
-         RenderTexture.active = rt;
-
-         Texture2D readableTex = new Texture2D(rawTex.width, rawTex.height);
-         readableTex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-         readableTex.Apply();
-
-         RenderTexture.active = previous;
-         RenderTexture.ReleaseTemporary(rt);
-         // ---------------------------------------
-
-         readableTex.filterMode = FilterMode.Point;
-
-         // Agora chamamos o teu Voxelizer com a textura que o Unity permite ler
-         CreateVoxelSprite(agentGO.transform, readableTex);
-
-
-         // 3. Configurar o Agente e Câmara (Resto do teu código mantém-se igual)
-         agent = agentGO.AddComponent<SimpleAgent>();
-         agent.world = world;
-         agent.gridPos = start;
-         agent.moveSpeed = agentMoveSpeed;
-        // Posicionar no mundo
-        agentGO.transform.position = world.GridToWorld(start);
-
-        Camera mainCam = Camera.main;
-        if (mainCam != null)
-        {
-            CameraController camController = mainCam.gameObject.GetComponent<CameraController>();
-            if (camController == null) camController = mainCam.gameObject.AddComponent<CameraController>();
-
-            camController.target = agentGO.transform;
-            camController.isHumanMode = userControl;
-        }
-        GameObject lightObj = new GameObject("PlayerLight");
-        lightObj.transform.SetParent(agentGO.transform);
-        lightObj.transform.localPosition = new Vector3(0, 0.5f, 0);
-        Light playerLight = lightObj.AddComponent<Light>();
-        playerLight.type = LightType.Point;
-        playerLight.color = new Color(1f, 0.9f, 0.7f); // Cor amarelada (tipo tocha/lanterna)
-        playerLight.intensity = 5.0f;
-        playerLight.shadows = LightShadows.Soft; // Sombras ativadas para dar terror nas curvas!
-
-        // 4. Definir o Raio de Visão com base no Genoma da IA
-        // Se a IA não tiver mandado o visionRadius (ou for 0), usamos 8.0f como padrão
-        float vRadius = 8.0f;
-        if (currentGenome != null && currentGenome.rules.visionRadius > 0) {
-            vRadius = currentGenome.rules.visionRadius;
-        }
-        playerLight.range = vRadius;
-        agentGO.transform.position = world.GridToWorld(start);
-
-        if (spawnChaser) {
-            Vector2Int chaserStart = GetUniqueSpawnPosition(rng);
-            GameObject chaserGO = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            chaserGO.name = "Chaser";
-
-            // Define a cor vermelha para o perseguidor
-            chaserGO.GetComponent<Renderer>().material = CreateSimpleMaterial(Color.red);
-
-            ChaserAI ai = chaserGO.AddComponent<ChaserAI>();
-            ai.world = world;
-            ai.gridPos = chaserStart;
-            ai.moveSpeed = chaserMoveSpeed; // Usa a velocidade definida no BuildScript
-            chaserGO.transform.position = world.GridToWorld(chaserStart);
-        }
-        if (currentGenome.rules.powerUpChance > 0) {
-            SpawnPowerUps(rng);
-        }
-
-        if (currentMode == "PointToPoint") {
-            SpawnGoal(rng);
-        } else {
-            for (int i = 0; i < collectibles; i++) SpawnCollectible(rng);
-        }
-        if (currentGenome.rules.trapChance > 0) {
-            SpawnTraps(rng);
-        }
-    }
-
-    void SpawnGoal(System.Random rng) {
-        Vector2Int p = GetUniqueSpawnPosition(rng);
-        GameObject goal = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        goal.name = "Goal";
-        goal.GetComponent<Renderer>().material = CreateSimpleMaterial(Color.cyan); // Bloco Azul
-        goal.transform.position = world.GridToWorld(p, 0.5f);
-        goal.AddComponent<Goal>().gridPos = p;
-    }
-
-    void SpawnCollectible(System.Random rng) {
-        Vector2Int p = GetUniqueSpawnPosition(rng);
-        GameObject coin = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        coin.name = "Collectible";
-        coin.tag = "Collectible";
-        coin.transform.position = world.GridToWorld(p, 0.3f);
-        coin.transform.localScale = Vector3.one * 0.5f;
-        coin.GetComponent<Renderer>().material.color = Color.yellow;
-        coin.AddComponent<Collectible>().gridPos = p;
-    }
-
-   void SpawnPowerUps(System.Random rng) {
-       int maxItems = Mathf.FloorToInt((gridWidth * gridHeight) * currentGenome.rules.powerUpChance * 0.1f);
-       if (maxItems < 1 && currentGenome.rules.powerUpChance > 0) maxItems = 1;
-
-       for (int i = 0; i < maxItems; i++) {
-           Vector2Int p = GetUniqueSpawnPosition(rng);
-           PowerUpType selectedType = (rng.Next(0, 2) == 0) ? PowerUpType.Time : PowerUpType.Speed;
-
-           // CORREÇÃO: Usar Cylinder (Cilindro) que existe no Unity
-           GameObject item = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-
-           item.name = "PowerUp_" + selectedType;
-           item.tag = "Collectible";
-
-           Color col = (selectedType == PowerUpType.Time) ? Color.blue : Color.magenta;
-           item.GetComponent<Renderer>().material = CreateSimpleMaterial(col);
-
-           // Posicionamento e Rotação inicial para parecer um "disco" ou "token"
-           item.transform.position = world.GridToWorld(p, 0.5f);
-           item.transform.localScale = new Vector3(0.5f, 0.1f, 0.5f); // Fica achatado como uma moeda
-           item.transform.rotation = Quaternion.Euler(90, 0, 0); // Fica de pé
-
-           PowerUp script = item.AddComponent<PowerUp>();
-           script.type = selectedType;
-           script.gridPos = p;
-
-           item.GetComponent<Collider>().isTrigger = true;
-
-           // ADICIONAR ANIMAÇÃO: Faz o item rodar e flutuar
-           item.AddComponent<ItemAnimate>();
-       }
-   }
-
-   void SpawnTraps(System.Random rng) {
-       int trapCount = Mathf.FloorToInt((gridWidth * gridHeight) * currentGenome.rules.trapChance);
-
-       for (int i = 0; i < trapCount; i++) {
-           Vector2Int p = GetUniqueSpawnPosition(rng); // Garante que não nasce em cima de moedas/agente
-
-           GameObject trapObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-           trapObj.name = "Trap";
-           trapObj.tag = "Collectible"; // Para limpeza automática
-
-           // Visual: Um tapete vermelho no chão
-           trapObj.GetComponent<Renderer>().material = CreateSimpleMaterial(new Color(0.8f, 0.2f, 0.2f));
-           trapObj.transform.position = world.GridToWorld(p, 0.05f); // Quase ao nível do chão
-           trapObj.transform.localScale = new Vector3(0.8f, 0.1f, 0.8f);
-
-           Trap script = trapObj.AddComponent<Trap>();
-           script.gridPos = p;
-           script.penalty = currentGenome.rules.trapPenalty;
-       }
-   }
-
-    Material CreateSimpleMaterial(Color color) {
-        Shader safetyShader = Shader.Find("Unlit/Color");
-        if (safetyShader == null) safetyShader = Shader.Find("Legacy Shaders/VertexLit");
-        Material mat = new Material(safetyShader);
-        mat.color = color;
-        return mat;
-    }
-
     void Update() {
-        if (finished) return;
-        currentTimer -= Time.deltaTime; // Atualiza o cronómetro da ronda
+        if (!isPlaying || finished) return;
+        totalPlayTime += Time.deltaTime;
+        currentTimer -= Time.deltaTime;
         if (currentTimer <= 0) {
             currentTimer = 0;
             Lose("TEMPO ESGOTADO");
@@ -373,36 +306,97 @@ public class GameManager : MonoBehaviour
     public void OnGoalReached() {
         if (finished) return;
         finished = true;
+        isPlaying = false;
+        winsCount++;
 
-        winsCount++; // Métrica de vitória
-        winTimes.Add(timeLimit - currentTimer); // Regista o tempo gasto para chegar ao objetivo
+        // 1. GUARDA O RELATÓRIO DESTE NÍVEL ANTES DE AVANÇAR
+        globalMetrics.level_reports.Add(new LevelReport {
+            level_id = currentLevel != null ? currentLevel.level_id : 1,
+            mode = this.currentMode,
+            total_rounds = currentLevelAttempts,
+            wins = 1, // Ganhou esta ronda
+            win_rate = currentLevelAttempts > 0 ? 1f / currentLevelAttempts : 0f,
+            avg_time_to_goal = currentLevelAttempts > 0 ? (totalPlayTime / currentLevelAttempts) : 0f,
+            stuck_events = stuckCount
+        });
 
-        Debug.Log("Objetivo alcançado! Vitória.");
-        Invoke("StartNewRun", 1.0f);
+        currentLevelIndex++; // Avança na Campanha
+        if (userControl && currentPlayer != null) {
+            currentPlayer.currentCampaignLevel = Mathf.Max(currentPlayer.currentCampaignLevel, currentLevelIndex + 1);
+            currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+        }
+
+        // Limpa as variáveis para o NOVO nível
+        currentLevelAttempts = 0;
+        stuckCount = 0;
+        totalPlayTime = 0f;
+
+        // 2. LÓGICA DE CONTINUAÇÃO
+        if (currentLevelIndex >= campaignData.Count) {
+            globalMetrics.campaign_completed = true; // 🎉 SUCESSO TOTAL!
+            globalMetrics.bottleneck_level = 0;
+
+            if (userControl && UIManager.Instance != null) UIManager.Instance.ShowEndScreen(true, "CAMPANHA CONCLUÍDA! És uma Lenda!");
+            else QuitGame();
+        } else {
+            if (userControl && UIManager.Instance != null) UIManager.Instance.ShowEndScreen(true, "Nível Concluído! Prepara-te para o próximo.");
+            else Invoke("StartNewRun", 0.05f);
+        }
     }
 
+    // 💀 QUANDO MORRES, REINICIAS O MESMO NÍVEL (O index não sobe)
     public void OnAgentCaught() {
-        stuckCount++; // Se for apanhado ou ficar preso, conta como stuck_event
-        StartNewRun();
+        if (finished) return;
+        finished = true;
+        isPlaying = false;
+        stuckCount++;
+        currentLevelAttempts++; // Conta uma tentativa
+
+        if (!userControl) {
+            // LÓGICA DO BOT (Testador)
+            if (currentLevelAttempts >= botMaxAttempts) {
+                Debug.Log($"[BOT] Nível {currentLevel.level_id} é impossível! A abortar...");
+                QuitGame(); // Fecha para o Python corrigir o nível!
+            } else {
+                Invoke("StartNewRun", 0.05f); // Bot tenta outra vez rápido
+            }
+        } else {
+            // LÓGICA DO HUMANO (Arcade)
+            if (currentPlayer != null) {
+                currentPlayer.stats.currentLives--; // Perde uma vida!
+
+                if (currentPlayer.stats.currentLives <= 0) {
+                    // GAME OVER!
+                    currentPlayer.stats.currentLives = currentPlayer.stats.maxLives; // Restaura para a próxima
+                    currentPlayer.currentCampaignLevel = 1; // Volta ao início da campanha!
+                    currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+
+                    if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, "GAME OVER! Ficas-te sem vidas. A Campanha foi reiniciada.");
+                } else {
+                    // AINDA TEM VIDAS
+                    currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+                    if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"Morreste! Vidas restantes: {currentPlayer.stats.currentLives}");
+                }
+            }
+        }
     }
 
     void Lose(string reason) {
         if (finished) return;
         finished = true;
+        isPlaying = false;
+        timeoutsCount++;
 
-        timeoutsCount++; // Métrica de timeout
-        Debug.Log(reason);
-        Invoke("StartNewRun", 1.0f);
+        if (userControl && UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, reason);
+        else Invoke("StartNewRun", 0.05f);
     }
 
     void CleanupScene() {
         foreach (var obj in GameObject.FindGameObjectsWithTag("Collectible")) Destroy(obj);
         GameObject[] allObjects = Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None);
         foreach (var o in allObjects) {
-            if (o.name.StartsWith("Obstacle_") || o.name == "Floor" || o.name == "Agent" || o.name == "Goal")
-            {
+            if (o.name.StartsWith("Obstacle_") || o.name == "Floor" || o.name == "Agent" || o.name == "Goal" || o.name.StartsWith("Chaser_"))
                 Destroy(o);
-            }
         }
     }
 
@@ -410,108 +404,70 @@ public class GameManager : MonoBehaviour
         if (finished) return;
         collectedInRound++;
         totalCollectedGame++;
-        // No modo Collect, não spawna mais moedas. O Agente apanha as que já lá estão!
         if (collectedInRound >= collectibles) OnGoalReached();
     }
 
-    public void AddExtraTime() {
-        currentTimer += timeBoostAmount;
-        Debug.Log("Power-up: +5s de tempo!");
-    }
-
-    // Método para o Power-up de Velocidade
-    public void ApplySpeedBoost() {
-        StartCoroutine(SpeedBoostRoutine());
-    }
+    public void AddExtraTime() { currentTimer += timeBoostAmount; }
+    public void ApplySpeedBoost() { StartCoroutine(SpeedBoostRoutine()); }
 
     public void ApplyTrapPenalty(float amount) {
-        currentTimer -= amount;
+        float resistance = selectedClass != null ? selectedClass.stats.trapResistance : 1.0f;
+        currentTimer -= (amount * resistance);
         trapsHitCount++;
         if (currentTimer < 0) currentTimer = 0;
-        Debug.Log($"Armadilha! -{amount}s");
     }
 
     private System.Collections.IEnumerator SpeedBoostRoutine() {
         float originalSpeed = agent.moveSpeed;
         agent.moveSpeed *= speedBoostMultiplier;
-        Debug.Log("Power-up: Velocidade aumentada!");
         yield return new WaitForSeconds(speedBoostDuration);
         agent.moveSpeed = originalSpeed;
-        Debug.Log("Velocidade normalizada.");
     }
 
-    void CreateVoxelSprite(Transform parent, Texture2D texture) {
-        int step = Mathf.Max(1, texture.width / 32);
-        float voxelSize = (float)step / texture.width;
-        int cubeCount = 0;
-
-        // Usamos a TUA função que já sabemos que funciona e nunca fica rosa!
-        Material baseMaterial = CreateSimpleMaterial(Color.white);
-        MaterialPropertyBlock propBlock = new MaterialPropertyBlock();
-
-        for (int y = 0; y < texture.height; y += step) {
-            for (int x = 0; x < texture.width; x += step) {
-                Color color = texture.GetPixel(x, y);
-
-                if (color.a > 0.1f) {
-                    GameObject voxel = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    voxel.transform.SetParent(parent);
-
-                    voxel.transform.localPosition = new Vector3(
-                        (x - texture.width / 2f) / texture.width,
-                        (float)y / texture.width,
-                        0
-                    );
-
-                    voxel.transform.localScale = Vector3.one * voxelSize;
-
-                    Renderer rend = voxel.GetComponent<Renderer>();
-                    rend.sharedMaterial = baseMaterial;
-
-                    // Define a cor no Material Property Block
-                    propBlock.SetColor("_Color", color);
-                    propBlock.SetColor("_BaseColor", color);
-                    rend.SetPropertyBlock(propBlock);
-
-                    Destroy(voxel.GetComponent<BoxCollider>());
-                    cubeCount++;
-                }
-            }
+    public void UI_PlayNextLevel() {
+        if (UIManager.Instance != null) {
+            UIManager.Instance.ShowHUD(); // Volta a colocar o Timer e as Moedas no ecrã!
         }
+        StartNewRun();
+    }
 
-        Debug.Log($"🎨 [Voxelizer] Otimizado e com Cores! Criou {cubeCount} blocos.");
-
-        if (cubeCount == 0) {
-            GameObject fallback = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            fallback.transform.SetParent(parent);
-            fallback.GetComponent<Renderer>().material = CreateSimpleMaterial(Color.magenta);
+    public void UI_ReturnToMenu() {
+        if (UIManager.Instance != null) {
+            UIManager.Instance.ShowTitleScreen(); // Abre o Menu Principal
         }
+        CleanupScene();
+        isPlaying = false;
     }
 
     void QuitGame() {
-        // Cálculo final das métricas antes de sair
-        GameMetrics metrics = new GameMetrics {
-            total_rounds = rounds,
-            wins = winsCount,
-            timeouts = timeoutsCount,
-            stuck_events = stuckCount,
-            win_rate = rounds > 0 ? (float)winsCount / rounds : 0f,
-            currentMode = this.currentMode,
-            total_collected = this.totalCollectedGame,
-            traps_hit = trapsHitCount,
-            is_human = userControl
-        };
+        if (currentPlayer != null && userControl) {
+            currentPlayer.wallet.totalCoins += totalCollectedGame;
+            currentPlayer.stats.totalTrapsHit += trapsHitCount;
+            currentPlayer.stats.totalWins += winsCount;
+            currentPlayer.currentCampaignLevel = Mathf.Max(currentPlayer.currentCampaignLevel, currentLevelIndex + 1);
+            currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+        }
 
-        float sumTime = 0f;
-        foreach (float t in winTimes) sumTime += t;
-        metrics.avg_time_to_goal = winsCount > 0 ? (sumTime / winsCount) : 0f;
+        // Se o jogo acabou e a campanha não foi concluída, foi porque bateu num gargalo (Game Over)
+        if (!globalMetrics.campaign_completed) {
+            globalMetrics.bottleneck_level = currentLevel != null ? currentLevel.level_id : 1;
 
-        // Gravação do ficheiro JSON na raiz do projeto
-        string json = JsonUtility.ToJson(metrics, true);
-        string path = Path.Combine(Application.dataPath, "..", "metrics.json");
-        File.WriteAllText(path, json);
+            // Adiciona o relatório do nível onde falhou
+            globalMetrics.level_reports.Add(new LevelReport {
+                level_id = globalMetrics.bottleneck_level,
+                mode = this.currentMode,
+                total_rounds = currentLevelAttempts,
+                wins = 0,
+                win_rate = 0f, // 0 vitórias
+                avg_time_to_goal = currentLevelAttempts > 0 ? (totalPlayTime / currentLevelAttempts) : 0f,
+                stuck_events = stuckCount
+            });
+        }
 
-        Debug.Log($"Simulação concluída. Métricas exportadas para: {path}");
+        globalMetrics.is_human = userControl;
+
+        // GRAVA O MEGA RELATÓRIO NO METRICS.JSON
+        File.WriteAllText(Path.Combine(Application.dataPath, "..", "metrics.json"), JsonUtility.ToJson(globalMetrics, true));
 
         #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;

@@ -1,0 +1,21 @@
+{
+  "playerName": "Director",
+  "currentCampaignLevel": 1,
+  "wallet": {
+    "totalCoins": 0
+  },
+  "loadout": {
+    "selectedClassID": "Explorer"
+  },
+  "unlockedClasses": [
+    "Explorer"
+  ],
+  "purchasedUpgrades": {
+    "startExtraTimeLvl": 0,
+    "morePowerUpsLvl": 0
+  },
+  "stats": {
+    "totalTrapsHit": 0,
+    "totalWins": 0
+  }
+}

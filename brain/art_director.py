@@ -11,92 +11,94 @@ from rich import print
 OLLAMA_URL = "http://localhost:11434/api/generate"
 SD_API_URL = "http://127.0.0.1:7860/sdapi/v1/txt2img"
 
+# Determinar caminhos base
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TEMPLATE_SPRITES = os.path.join(BASE_DIR, "templates", "sprites")
+TEMPLATE_TEXTURES = os.path.join(BASE_DIR, "templates", "textures")
+
 def generate_character_prompt(genome: dict) -> str:
-    """Pede ao Ollama para imaginar um personagem baseado nos status do jogo."""
+    """Pede ao Ollama para imaginar um personagem baseado na velocidade."""
     speed = genome.get("agent", {}).get("speed", 6.0)
 
-    # Prompt simples para o Ollama
-    system_prompt = """You are an expert video game art director for a voxel-based 3D game. 
-    Your job is to write a highly detailed Stable Diffusion prompt. 
-    Output ONLY a comma-separated list of tags. No intro, no sentences, no markdown."""
-
-    # Adicionamos lógica para o LLM escolher um "tema" com base na velocidade!
-    user_prompt = f"""Design a character sprite for a maze runner game. 
-    The character's speed stat is {speed} (If speed is high > 6, make them look agile like a ninja, rogue, or fast sci-fi runner. If speed is low < 5, make them look heavy like a knight, golem, or tank). 
-    
-    You MUST include these exact technical tags for the voxelizer to work:
-    'front view, symmetrical, standing still, flat colors, strictly no gradients, pure white background, minimalist 8-bit pixel art, sharp edges'
-    
-    Describe the character's visual details now. Return ONLY the comma-separated tags."""
+    system_prompt = """You are an expert video game art director. Output ONLY comma-separated tags."""
+    user_prompt = f"""Design a character sprite. Speed stat is {speed}. 
+    If speed > 6: agile ninja/sci-fi runner. If speed < 5: heavy knight/golem.
+    Technical tags: 'front view, symmetrical, standing still, flat colors, pure white background, pixel art, sharp edges'."""
 
     payload = {
-        "model": "llama3", # Substitui pelo modelo que usas (ex: phi3, mistral)
+        "model": "llama3",
         "prompt": f"{system_prompt}\n{user_prompt}",
         "stream": False
     }
 
     try:
         response = requests.post(OLLAMA_URL, json=payload)
-        response.raise_for_status()
-        art_prompt = response.json().get("response", "").strip()
-        print(f"[cyan]🎨 Ollama imaginou:[/cyan] {art_prompt}")
-        return art_prompt
-    except Exception as e:
-        print(f"[red]Erro ao falar com o Ollama: {e}[/red]")
-        return "pixel art character, top down view, simple, white background"
+        return response.json().get("response", "").strip()
+    except:
+        return "pixel art character, standing, white background"
 
-def generate_and_cut_sprite(prompt: str, output_path: str):
-    """Pede ao Stable Diffusion para desenhar e usa o rembg para cortar o fundo."""
-    print("[yellow]A desenhar o sprite no Stable Diffusion...[/yellow]")
+def save_and_process_image(img_b64, output_path, should_remove_bg=False):
+    """Converte base64, processa (opcionalmente remove fundo) e guarda."""
+    image_data = base64.b64decode(img_b64)
+    image = Image.open(BytesIO(image_data))
 
-    # Payload para o AUTOMATIC1111
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    if should_remove_bg:
+        print(f"[yellow]✂️ Recortando fundo: {os.path.basename(output_path)}[/yellow]")
+        image = remove(image)
+
+    image.save(output_path, format="PNG")
+    print(f"[bold green]✅ Guardado em:[/bold green] {output_path}")
+
+
+def generate_art_asset(prompt, output_path, is_sprite=True):
+    """Chama o Stable Diffusion usando a mesma LoRA para consistência."""
+    print(f"[yellow]🎨 Gerando: {os.path.basename(output_path)}...[/yellow]")
+
     sd_payload = {
-        "prompt": prompt+" <lora:128pixelartXL:1>",
-        "negative_prompt": "photorealistic, realistic, 3d render, shadows, gradients, anti-aliasing, messy, ugly, complex background",
+        "prompt": f"{prompt} <lora:128pixelartXL:1>",
+        "negative_prompt": "photorealistic, realistic, 3d, shadows, gradients, messy, ugly, complex background",
         "steps": 25,
         "cfg_scale": 7.5,
-        "width": 1024,   # OBRIGATÓRIO PARA SDXL!
-        "height": 1024,  # OBRIGATÓRIO PARA SDXL!
+        "width": 1024,
+        "height": 1024,
         "sampler_name": "Euler a",
-
-        # Esta linha obriga a API a trocar para o modelo Pixel Art antes de desenhar
         "override_settings": {
-            "sd_model_checkpoint": "realvisxlV50_v50LightningBakedvae.safetensors" # Ex: "pixelArtXL_v10.safetensors"
+            "sd_model_checkpoint": "realvisxlV50_v50LightningBakedvae.safetensors"
         }
     }
 
     try:
-        # 1. Gerar Imagem
         response = requests.post(SD_API_URL, json=sd_payload)
         response.raise_for_status()
         img_b64 = response.json()["images"][0]
-
-        # Converter Base64 para Imagem do Pillow
-        image_data = base64.b64decode(img_b64)
-        input_image = Image.open(BytesIO(image_data))
-
-        print("[yellow]A recortar o fundo (rembg)...[/yellow]")
-        # 2. Cortar Fundo
-        output_image = remove(input_image)
-
-        # 3. Guardar no Unity
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        output_image.save(output_path, format="PNG")
-        print(f"[bold green]✅ Sprite guardado com sucesso em:[/bold green] {output_path}")
-
+        save_and_process_image(img_b64, output_path, should_remove_bg=is_sprite)
     except Exception as e:
-        print(f"[red]Erro na geração de arte: {e}[/red]")
+        print(f"[red]Erro na API de Arte: {e}[/red]")
+
+def generate_environment(genome: dict):
+    """Gera texturas de chão e obstáculos baseadas no tema."""
+    speed = genome.get("agent", {}).get("speed", 6.0)
+    theme = "cyberpunk neon city" if speed > 7 else "medieval stone dungeon"
+
+    # Gerar Chão (Seamless)
+    floor_prompt = f"top-down view, {theme} floor tiles, seamless pattern, pixel art, flat colors"
+    generate_art_asset(floor_prompt, os.path.join(TEMPLATE_TEXTURES, "FloorTexture.png"), is_sprite=False)
+
+    # Gerar Obstáculo
+    obs_prompt = f"top-down view, {theme} wall pillar, metal crate, pixel art, flat colors"
+    generate_art_asset(obs_prompt, os.path.join(TEMPLATE_TEXTURES, "ObstacleTexture.png"), is_sprite=False)
 
 if __name__ == "__main__":
-    # Teste rápido de arte!
-    teste_genome = {"agent": {"speed": 9.0}} # Personagem rápido
+    # Teste: Criar herói e ambiente para um ninja rápido
+    test_genome = {"agent": {"speed": 9.0}}
 
-    # Caminho onde o Unity vai ler a imagem dinamicamente (Resources)
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    sprite_dir = os.path.join(base_dir, "templates", "sprites")
-    os.makedirs(sprite_dir, exist_ok=True)
-    sprite_path = os.path.join(sprite_dir, "PlayerSprite.png")
+    print("[magenta]🚀 Sessão de Arte Studio-AI Iniciada[/magenta]")
 
-    print("[magenta]A iniciar a sessão de Arte...[/magenta]")
-    art_prompt = generate_character_prompt(teste_genome)
-    generate_and_cut_sprite(art_prompt, sprite_path)
+    # 1. Gerar Personagem
+    char_prompt = generate_character_prompt(test_genome)
+    generate_art_asset(char_prompt, os.path.join(TEMPLATE_SPRITES, "PlayerSprite.png"), is_sprite=True)
+
+    # 2. Gerar Ambiente
+    generate_environment(test_genome)

@@ -1,124 +1,130 @@
-using System.Collections.Generic;
 using UnityEngine;
+using System.Collections.Generic;
 
 public class GridWorld : MonoBehaviour
 {
     public int Width { get; private set; }
     public int Height { get; private set; }
     public float CellSize { get; private set; }
-    private bool[,] blocked;
 
-    public void Build(int w, int h, float size, int obstacleCount, int seed)
+    private bool[,] grid;
+
+    public void Build(int width, int height, float cellSize, int obstacleCount, int seed)
     {
-        Width = w;
-        Height = h;
-        CellSize = size;
-        blocked = new bool[w, h];
+        Width = width;
+        Height = height;
+        CellSize = cellSize;
+        grid = new bool[width, height];
 
-        // 1. Preenche TUDO com paredes (Mapa sólido)
-        for (int x = 0; x < w; x++)
-            for (int y = 0; y < h; y++)
-                blocked[x, y] = true;
+        // 1. PAREDES EXTERIORES
+        for (int x = 0; x < width; x++) {
+            grid[x, 0] = true;
+            grid[x, height - 1] = true;
+        }
+        for (int y = 0; y < height; y++) {
+            grid[0, y] = true;
+            grid[width - 1, y] = true;
+        }
 
-        // 2. Calcula quantas células têm de ficar livres para andarmos
-        int totalCells = w * h;
-        int targetEmptyCells = totalCells - obstacleCount;
-        if (targetEmptyCells < 1) targetEmptyCells = 1;
-
-        // 3. O Algoritmo "Drunkard's Walk" para escavar corredores conectados
+        // 2. GERADOR DE LABIRINTO INTERIOR
         System.Random rng = new System.Random(seed);
-        int currentX = w / 2; // Começa no centro
-        int currentY = h / 2;
+        int placed = 0;
+        int attempts = 0;
 
-        blocked[currentX, currentY] = false;
-        int emptyCount = 1;
-
-        // Direções (Cima, Baixo, Esquerda, Direita)
-        int[] dx = { 0, 0, -1, 1 };
-        int[] dy = { -1, 1, 0, 0 };
-
-        while (emptyCount < targetEmptyCells)
+        while (placed < obstacleCount && attempts < 10000)
         {
-            // O mineiro escolhe uma direção aleatória
-            int dir = rng.Next(0, 4);
-            int nextX = currentX + dx[dir];
-            int nextY = currentY + dy[dir];
+            attempts++;
 
-            // Garante que o mineiro não sai dos limites do mapa
-            if (nextX >= 0 && nextX < w && nextY >= 0 && nextY < h)
+            int rx = rng.Next(2, width - 2);
+            int ry = rng.Next(2, height - 2);
+            if (Mathf.Abs(rx - width/2) < 2 && Mathf.Abs(ry - height/2) < 2) continue;
+            if (!grid[rx, ry])
             {
-                currentX = nextX;
-                currentY = nextY;
+                int length = rng.Next(1, 5);
+                bool horizontal = rng.Next(0, 2) == 0;
 
-                // Se for parede, escava!
-                if (blocked[currentX, currentY])
-                {
-                    blocked[currentX, currentY] = false;
-                    emptyCount++;
+                for (int i = 0; i < length; i++) {
+                    int nx = horizontal ? rx + i : rx;
+                    int ny = horizontal ? ry : ry + i;
+
+                    if (nx < width - 2 && ny < height - 2 && !grid[nx, ny]) {
+                        grid[nx, ny] = true;
+                        placed++;
+
+                        if (placed >= obstacleCount) break;
+                    }
                 }
             }
         }
     }
 
-public bool IsBlocked(Vector2Int pos) {
+    public bool IsBlocked(Vector2Int pos) {
         if (pos.x < 0 || pos.x >= Width || pos.y < 0 || pos.y >= Height) return true;
-        return blocked[pos.x, pos.y];
-    }
-    // Converte a coordenada da grelha para o mundo 3D (ajustado ao centro)
-    public Vector3 GridToWorld(Vector2Int gridPos, float yOffset = 0) {
-        float x = (gridPos.x - Width / 2f) * CellSize + CellSize / 2f;
-        float z = (gridPos.y - Height / 2f) * CellSize + CellSize / 2f;
-        return new Vector3(x, yOffset, z);
+        return grid[pos.x, pos.y];
     }
 
     public Vector2Int WorldToGrid(Vector3 worldPos) {
-            int x = Mathf.FloorToInt((worldPos.x + Width * CellSize / 2f) / CellSize);
-            int y = Mathf.FloorToInt((worldPos.z + Height * CellSize / 2f) / CellSize);
-            return new Vector2Int(x, y);
+        int x = Mathf.RoundToInt(worldPos.x / CellSize);
+        int z = Mathf.RoundToInt(worldPos.z / CellSize);
+        return new Vector2Int(x, z);
+    }
+
+    public Vector3 GridToWorld(Vector2Int gridPos, float yOffset = 0f) {
+        return new Vector3(gridPos.x * CellSize, yOffset, gridPos.y * CellSize);
+    }
+
+    public Vector2Int RandomFreeCell(System.Random rng) {
+        for (int i = 0; i < 2000; i++) {
+            int x = rng.Next(1, Width - 1);
+            int y = rng.Next(1, Height - 1);
+            if (!grid[x, y]) return new Vector2Int(x, y);
         }
+        return new Vector2Int(Width / 2, Height / 2);
+    }
 
-    // Algoritmo de procura de caminho (BFS) para a grelha
-    public bool TryFindPath(Vector2Int start, Vector2Int goal, List<Vector2Int> outPath)
+    // ========================================================
+    // O CÉREBRO DE NAVEGAÇÃO DOS INIMIGOS (DE VOLTA!)
+    // ========================================================
+    public bool TryFindPath(Vector2Int start, Vector2Int target, List<Vector2Int> path)
     {
-        outPath.Clear();
-        if (IsBlocked(start) || IsBlocked(goal)) return false;
-
+        path.Clear();
         Queue<Vector2Int> queue = new Queue<Vector2Int>();
         Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
+
         queue.Enqueue(start);
         cameFrom[start] = start;
 
-        while (queue.Count > 0)
-        {
+        Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+        bool found = false;
+
+        while (queue.Count > 0) {
             Vector2Int current = queue.Dequeue();
-            if (current == goal)
-            {
-                Vector2Int temp = goal;
-                while (temp != start) { outPath.Add(temp); temp = cameFrom[temp]; }
-                outPath.Add(start);
-                outPath.Reverse();
-                return true;
+            if (current == target) {
+                found = true;
+                break;
             }
-            foreach (Vector2Int dir in new Vector2Int[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right })
-            {
+
+            foreach (Vector2Int dir in dirs) {
                 Vector2Int next = current + dir;
-                if (!IsBlocked(next) && !cameFrom.ContainsKey(next))
-                {
-                    cameFrom[next] = current;
-                    queue.Enqueue(next);
+
+                if (next.x >= 0 && next.x < Width && next.y >= 0 && next.y < Height) {
+                    if (!IsBlocked(next) && !cameFrom.ContainsKey(next)) {
+                        queue.Enqueue(next);
+                        cameFrom[next] = current;
+                    }
                 }
             }
         }
-        return false;
-    }
 
-    public Vector2Int RandomFreeCell(System.Random rng)
-    {
-        for (int i = 0; i < 1000; i++) {
-            int x = rng.Next(0, Width);
-            int y = rng.Next(0, Height);
-            if (!blocked[x, y]) return new Vector2Int(x, y);
+        if (!found) return false;
+
+        Vector2Int curr = target;
+        while (curr != start) {
+            path.Add(curr);
+            curr = cameFrom[curr];
         }
-        return new Vector2Int(Width / 2, Height / 2);
+        path.Add(start);
+        path.Reverse();
+        return true;
     }
 }

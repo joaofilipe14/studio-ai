@@ -1,104 +1,148 @@
-using System;
+using System.Collections.Generic;
 using UnityEngine;
 using System.IO;
 
-[Serializable]
-public class ArenaData {
-    public float halfSize = 8.0f;
-    public bool walls = true;
-}
+// ==========================================
+// TRUQUE MÁGICO PARA LER ARRAYS JSON NO UNITY
+// ==========================================
+public static class JsonHelper {
+    public static T[] FromJson<T>(string json) {
+        // Embrulha o array num objeto temporário para o Unity conseguir ler
+        string newJson = "{ \"array\": " + json + "}";
+        Wrapper<T> wrapper = JsonUtility.FromJson<Wrapper<T>>(newJson);
+        return wrapper.array;
+    }
 
-[Serializable]
-public class AgentData {
-    public float speed = 5.0f;
-    public float acceleration = 15.0f;
-    public float stopDistance = 0.5f;
-}
-
-[Serializable]
-public class ObstaclesData {
-    public int count = 8;
-    public float minScale = 1.0f;
-    public float maxScale = 2.5f;
-    public string type = "Static";
-}
-
-[Serializable]
-public class RulesData {
-    public float timeLimit = 20.0f;
-    public int rounds = 5;
-    public int targetCount = 1;
-    public float enemySpeed = 0.0f;
-    public float powerUpChance = 0.1f;
-    public string powerUpType = "Mixed";
-    public float trapChance = 0.05f;
-    public float trapPenalty = 2.0f;
-    public float visionRadius;
-}
-
-
-// Representa UMA configuração de jogo (Um Modo)
-[Serializable]
-public class GameGenome {
-    public string mode = "PointToPoint";
-    public int seed = 42;
-    public ArenaData arena;
-    public AgentData agent;
-    public ObstaclesData obstacles;
-    public RulesData rules;
-
-    public void Validate() {
-        if (arena == null) arena = new ArenaData();
-        if (agent == null) agent = new AgentData();
-        if (obstacles == null) obstacles = new ObstaclesData();
-        if (rules == null) rules = new RulesData();
+    [System.Serializable]
+    private class Wrapper<T> {
+        public T[] array;
     }
 }
 
-// Representa o ficheiro JSON inteiro com a Lista de Modos
-[Serializable]
-public class GameGenomeCollection {
-    public GameGenome[] configs;
+// ==========================================
+// 1. LEVEL GENOME (Agora adaptado para Listas)
+// ==========================================
+[System.Serializable]
+public class LevelArena {
+    public float halfSize;
+    public bool walls;
+}
+
+[System.Serializable]
+public class LevelObstacles {
+    public int count;
+    public float minScale;
+    public float maxScale;
+}
+
+[System.Serializable]
+public class LevelRules {
+    public float timeLimit;
+    public int targetCount;
+    public int enemyCount;
+    public float enemySpeed;
+    public int powerUpCount;
+    public string powerUpType;
+    public int trapCount;
+    public float trapPenalty;
+}
+
+[System.Serializable]
+public class LevelGenome {
+    public int level_id;
     public string mode;
-    public bool userControl;
+    public int seed;
+    public string theme;
+    public LevelArena arena;
+    public LevelObstacles obstacles;
+    public LevelRules rules;
+}
 
-    public static GameGenomeCollection Load(string path) {
-        if (File.Exists(path)) {
-            string json = File.ReadAllText(path);
+// ==========================================
+// 2. ROSTER (Catálogo de Classes - Estático)
+// ==========================================
+[System.Serializable]
+public class CharacterStats {
+    public float speed;
+    public float acceleration;
+    public float visionRadius;
+    public float trapResistance;
+}
 
-            GameGenomeCollection collection = JsonUtility.FromJson<GameGenomeCollection>(json);
+[System.Serializable]
+public class CharacterClass {
+    public string id;
+    public string name;
+    public string description;
+    public string spriteName;
+    public int cost;
+    public CharacterStats stats;
+}
 
-            if (collection == null || collection.configs == null || collection.configs.Length == 0) {
-                GameGenome single = JsonUtility.FromJson<GameGenome>(json);
-                if (single != null) {
-                    single.Validate();
-                    return new GameGenomeCollection {
-                        configs = new GameGenome[] { single },
-                        mode = single.mode, // Fallback
-                        userControl = false // Fallback
-                    };
-                }
-            } else {
-                foreach(var c in collection.configs) c.Validate();
-                return collection;
-            }
+[System.Serializable]
+public class Roster {
+    public List<CharacterClass> classes;
+
+    public static Roster Load(string path) {
+        if (!File.Exists(path)) return null;
+        string json = File.ReadAllText(path);
+        return JsonUtility.FromJson<Roster>(json);
+    }
+}
+
+// ==========================================
+// 3. PLAYER SAVE (Progresso do Jogador)
+// ==========================================
+[System.Serializable]
+public class PlayerWallet {
+    public int totalCoins;
+}
+
+[System.Serializable]
+public class PlayerLoadout {
+    public string selectedClassID;
+}
+
+[System.Serializable]
+public class PlayerUpgrades {
+    public int startExtraTimeLvl;
+    public int morePowerUpsLvl;
+}
+
+[System.Serializable]
+public class PlayerStats {
+    public int totalTrapsHit;
+    public int totalWins;
+    public int currentLives; // Vidas atuais
+    public int maxLives;     // O máximo de vidas que pode carregar
+}
+
+[System.Serializable]
+public class PlayerSave {
+    public string playerName;
+    public int currentCampaignLevel;
+    public PlayerWallet wallet;
+    public PlayerLoadout loadout;
+    public List<string> unlockedClasses;
+    public PlayerUpgrades purchasedUpgrades;
+    public PlayerStats stats;
+
+    public static PlayerSave Load(string path) {
+        if (!File.Exists(path)) {
+            return new PlayerSave {
+                playerName = "New Player",
+                currentCampaignLevel = 1,
+                wallet = new PlayerWallet(),
+                loadout = new PlayerLoadout { selectedClassID = "Explorer" },
+                stats = new PlayerStats { currentLives = 3, maxLives = 3 } // COMEÇA COM 3 VIDAS!
+            };
         }
-
-        Debug.LogWarning("Genome file not found at " + path + ". Using default values.");
-        var defaultGenome = new GameGenome();
-        defaultGenome.Validate();
-        return new GameGenomeCollection {
-            configs = new GameGenome[] { defaultGenome },
-            mode = defaultGenome.mode,
-            userControl = false
-        };
+        string json = File.ReadAllText(path);
+        return JsonUtility.FromJson<PlayerSave>(json);
     }
 
-    public GameGenome GetConfig(string modeName) {
-        if (configs == null) return null;
-        foreach (var c in configs) {
-            if (c.mode == modeName) return c;
-        }
-        return configs.Length > 0 ? configs[0] : null;
+    public void Save(string path) {
+        string json = JsonUtility.ToJson(this, true);
+        File.WriteAllText(path, json);
     }
 }

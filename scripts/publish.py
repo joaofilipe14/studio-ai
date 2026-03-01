@@ -1,102 +1,52 @@
 import os
 import shutil
-import json
-import glob
 from rich import print
 
-# 1. Descobrir a Raiz do Projeto dinamicamente (para funcionar em qualquer pasta)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__)) # C:\studio-ai\scripts
-ROOT_DIR = os.path.dirname(SCRIPT_DIR)                  # C:\studio-ai
-
-def find_best_genome(hof_dir: str) -> str:
-    """Procura no Hall of Fame o genoma com o Win Rate mais próximo de 0.75."""
-    files = glob.glob(os.path.join(hof_dir, "*.json"))
-    if not files:
-        return None
-
-    best_file = None
-    min_diff = float('inf')
-    target_wr = 0.75
-
-    for f in files:
-        try:
-            basename = os.path.basename(f).replace(".json", "")
-            parts = basename.split("_")
-            wr = float(parts[-1])
-
-            diff = abs(wr - target_wr)
-            if diff < min_diff:
-                min_diff = diff
-                best_file = f
-        except Exception:
-            continue
-
-    if not best_file:
-        best_file = max(files, key=os.path.getctime)
-
-    return best_file
-
 def publish_game():
-    print("[cyan]A iniciar o Pipeline de Release (Studio-AI)...[/cyan]")
+    print("[cyan]A iniciar o Pipeline de Release (Studio-AI - Fase 4)...[/cyan]")
 
-    # 2. Definir Caminhos apontando para a Raiz (ROOT_DIR)
-    source_build_dir = os.path.join(ROOT_DIR, "projects", "game_001", "Builds")
-    release_dir = os.path.join(ROOT_DIR, "releases", "game_prod")
-    hof_dir = os.path.join(ROOT_DIR, "hall_of_fame")
+    builds_dir = os.path.join("projects", "game_001", "Builds")
+    release_dir = os.path.join("releases", "game_prod")
 
-    if not os.path.exists(source_build_dir):
-        print(f"[red]Erro: Pasta de compilação não encontrada em {source_build_dir}. Corre o orchestrator.py primeiro.[/red]")
+    if not os.path.exists(builds_dir):
+        print("[red]Erro: Pasta de Builds não encontrada. Corre o Orquestrador primeiro.[/red]")
         return
 
+    print(f"[white]A limpar a versão de produção anterior em {release_dir}...[/white]")
     if os.path.exists(release_dir):
-        print("[yellow]A limpar a versão de produção anterior...[/yellow]")
         shutil.rmtree(release_dir)
+    os.makedirs(release_dir, exist_ok=True)
 
-    print(f"[cyan]A empacotar o executável para {release_dir}...[/cyan]")
-    shutil.copytree(source_build_dir, release_dir)
+    print(f"[white]A empacotar o executável e dados para a Produção...[/white]")
 
-    print("[cyan]A analisar o Hall of Fame...[/cyan]")
-    best_genome_path = find_best_genome(hof_dir)
+    # 1. Copiar todos os ficheiros compilados do Unity (O .exe, os .dll, e a pasta _Data)
+    for item in os.listdir(builds_dir):
+        s = os.path.join(builds_dir, item)
+        d = os.path.join(release_dir, item)
+        if os.path.isdir(s):
+            shutil.copytree(s, d)
+        else:
+            shutil.copy2(s, d)
 
-    target_genome_path = os.path.join(release_dir, "game_genome.json")
+    # 2. Garantir que os 3 novos JSONs estruturais vão junto
+    json_files = ["level_genome.json", "roster.json", "player_save.json"]
+    for j_file in json_files:
+        # Primeiro tenta copiar da raiz do projeto (onde estão sempre atualizados)
+        src = os.path.join(".", j_file)
+        dest = os.path.join(release_dir, j_file)
 
-    if best_genome_path:
-        print(f"[green]Melhor genoma encontrado: {os.path.basename(best_genome_path)}[/green]")
+        # Se não estiverem na raiz (por exemplo, na primeiríssima execução), vai aos templates
+        if not os.path.exists(src):
+            src = os.path.join("templates", "unity", j_file)
 
-        with open(best_genome_path, "r", encoding="utf-8") as f:
-            best_genome_data = json.load(f)
-        best_genome_data["userControl"] = True
+        if os.path.exists(src):
+            shutil.copy2(src, dest)
+            print(f"[green]✓ {j_file} empacotado.[/green]")
+        else:
+            print(f"[yellow]Aviso: Não encontrei o {j_file} para incluir na release.[/yellow]")
 
-        if "configs" in best_genome_data:
-            for config in best_genome_data["configs"]:
-                if "rules" in config and config["rules"].get("timeLimit", 0) < 20:
-                    config["rules"]["timeLimit"] += 15.0
+    print(f"\n[bold green]🎉 Release de Produção concluída com sucesso![/bold green]")
+    print(f"O teu jogo final está na pasta: {os.path.abspath(release_dir)}\n")
 
-        with open(target_genome_path, "w", encoding="utf-8") as f:
-            json.dump(best_genome_data, f, indent=2)
-
-        print("[green]Genoma injetado com controlos humanos ativados![/green]")
-    else:
-        print("[yellow]Aviso: Nenhum genoma encontrado no Hall of Fame. A usar o genoma de desenvolvimento padrão.[/yellow]")
-        if os.path.exists(target_genome_path):
-            with open(target_genome_path, "r", encoding="utf-8") as f:
-                fallback_data = json.load(f)
-
-            # ---> COLOCAR NA RAIZ (Nova arquitetura!) <---
-            fallback_data["userControl"] = True
-
-            # (Opcional) Dar a abébia do tempo também no fallback
-            if "configs" in fallback_data:
-                for config in fallback_data["configs"]:
-                    if "rules" in config and config["rules"].get("timeLimit", 0) < 20:
-                        config["rules"]["timeLimit"] += 15.0
-
-            with open(target_genome_path, "w", encoding="utf-8") as f:
-                json.dump(fallback_data, f, indent=2)
-
-    metrics_cleanup = os.path.join(release_dir, "metrics.json")
-    if os.path.exists(metrics_cleanup):
-        os.remove(metrics_cleanup)
-
-    print("\n[bold green]🎉 Release de Produção concluída com sucesso![/bold green]")
-    print(f"O teu jogo final, balanceado pela IA e pronto a jogar, está na pasta: [bold white]{release_dir}[/bold white]")
+if __name__ == "__main__":
+    publish_game()

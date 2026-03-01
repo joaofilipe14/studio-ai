@@ -6,7 +6,18 @@ public class SimpleAgent : MonoBehaviour
     public GridWorld world;
     public Vector2Int gridPos;
     public float moveSpeed = 5f;
-    private List<Vector2Int> path = new List<Vector2Int>();
+
+    // Posição alvo para o movimento suave
+    private Vector3 targetWorldPos;
+
+    // Memória do Bot (IA)
+    private List<Vector2Int> currentPath;
+    private int pathIndex = 0;
+    private float pathRecalculateTimer = 0f;
+
+    void Start() {
+        targetWorldPos = world.GridToWorld(gridPos, transform.position.y);
+    }
 
     void Update() {
         if (GameManager.Instance == null || GameManager.Instance.finished) return;
@@ -15,13 +26,14 @@ public class SimpleAgent : MonoBehaviour
         if (GameManager.Instance.userControl) {
             HandleManualMovement();
         } else {
-            HandleAIMovement();
+            HandleBotAI();
         }
     }
 
+    // ==========================================
+    // 1. CONTROLO HUMANO (Com a tua lógica de Câmara!)
+    // ==========================================
     void HandleManualMovement() {
-        Vector3 targetWorldPos = world.GridToWorld(gridPos, transform.position.y);
-
         // O jogador só pode decidir a próxima direção quando o agente chegar ao centro do bloco atual
         if (Vector3.Distance(transform.position, targetWorldPos) < 0.05f) {
 
@@ -62,9 +74,13 @@ public class SimpleAgent : MonoBehaviour
 
                 // 5. Aplicar o movimento na grelha se não houver parede
                 Vector2Int nextPos = gridPos + bestGridDir;
-                if (!world.IsBlocked(nextPos)) {
-                    gridPos = nextPos; // Atualiza a posição alvo na grelha
-                    targetWorldPos = world.GridToWorld(gridPos, transform.position.y);
+
+                // Prevenção de segurança para não sair do mapa
+                if (nextPos.x >= 0 && nextPos.x < world.Width && nextPos.y >= 0 && nextPos.y < world.Height) {
+                    if (!world.IsBlocked(nextPos)) {
+                        gridPos = nextPos; // Atualiza a posição alvo na grelha
+                        targetWorldPos = world.GridToWorld(gridPos, transform.position.y);
+                    }
                 }
             }
         }
@@ -79,39 +95,112 @@ public class SimpleAgent : MonoBehaviour
         }
     }
 
-    void HandleAIMovement() {
-        Vector2Int? targetPos = null;
+    // ==========================================
+    // 2. CÉREBRO DO BOT (PATHFINDING BFS JUSTO)
+    // ==========================================
+    void HandleBotAI() {
+        // Move visualmente o agente
+        transform.position = Vector3.MoveTowards(transform.position, targetWorldPos, moveSpeed * Time.deltaTime);
+
+        // Roda o agente suavemente
+        Vector3 dir = (targetWorldPos - transform.position).normalized;
+        if (dir != Vector3.zero) {
+            transform.forward = Vector3.Lerp(transform.forward, dir, Time.deltaTime * 15f);
+        }
+
+        // Só toma decisões lógicas se já chegou fisicamente ao centro da célula
+        if (Vector3.Distance(transform.position, targetWorldPos) >= 0.05f) return;
+
+        gridPos = world.WorldToGrid(transform.position);
+        pathRecalculateTimer -= Time.deltaTime;
+
+        // Recalcula a rota a cada 0.5s ou se esgotou os passos
+        if (currentPath == null || pathIndex >= currentPath.Count || pathRecalculateTimer <= 0) {
+            RecalculatePath();
+            pathRecalculateTimer = 0.5f;
+        }
+
+        // Dá a ordem para avançar para a próxima célula do caminho
+        if (currentPath != null && pathIndex < currentPath.Count) {
+            Vector2Int nextPos = currentPath[pathIndex];
+            targetWorldPos = world.GridToWorld(nextPos, transform.position.y);
+            pathIndex++;
+        }
+    }
+
+    void RecalculatePath() {
+        Vector2Int targetPos = gridPos;
+
+        // Descobrir onde está o objetivo
         if (GameManager.Instance.currentMode == "PointToPoint") {
             Goal goal = Object.FindFirstObjectByType<Goal>();
             if (goal != null) targetPos = goal.gridPos;
         } else {
             Collectible[] coins = Object.FindObjectsByType<Collectible>(FindObjectsSortMode.None);
-            if (coins.Length > 0) {
-                float minDist = float.MaxValue;
-                foreach (var c in coins) {
-                    float dist = Vector2Int.Distance(gridPos, c.gridPos);
-                    if (dist < minDist) {
-                        minDist = dist;
+            float minDist = float.MaxValue;
+            foreach (var c in coins) {
+                if (c.gameObject.CompareTag("Collectible")) {
+                    float d = Vector2Int.Distance(gridPos, c.gridPos);
+                    if (d < minDist) {
+                        minDist = d;
                         targetPos = c.gridPos;
                     }
                 }
             }
         }
 
-        if (targetPos.HasValue) {
-            if (world.TryFindPath(gridPos, targetPos.Value, path) && path.Count > 1) {
-                Vector3 targetWorld = world.GridToWorld(path[1], transform.position.y);
-                transform.position = Vector3.MoveTowards(transform.position, targetWorld, moveSpeed * Time.deltaTime);
+        // Calcular a Rota
+        currentPath = FindPathBFS(gridPos, targetPos);
+        pathIndex = 0;
 
-                Vector3 dir = (targetWorld - transform.position).normalized;
-                if (dir != Vector3.zero) transform.forward = dir;
+        // O index 0 do BFS é a nossa casa atual, por isso queremos saltar para a casa 1
+        if (currentPath != null && currentPath.Count > 1) {
+            pathIndex = 1;
+        }
+    }
 
-                if (Vector3.Distance(new Vector3(transform.position.x, 0, transform.position.z),
-                                     new Vector3(targetWorld.x, 0, targetWorld.z)) < 0.1f)
-                {
-                    gridPos = path[1];
+    // Algoritmo de mapeamento limpo (Espalha-se em cruz ignorando as paredes)
+    List<Vector2Int> FindPathBFS(Vector2Int start, Vector2Int target) {
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+        Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
+
+        queue.Enqueue(start);
+        cameFrom[start] = start;
+
+        Vector2Int[] dirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+        bool found = false;
+
+        while (queue.Count > 0) {
+            Vector2Int current = queue.Dequeue();
+            if (current == target) {
+                found = true;
+                break;
+            }
+
+            foreach (Vector2Int dir in dirs) {
+                Vector2Int next = current + dir;
+
+                // Respeita estritamente os limites do mapa e a colisão com as paredes!
+                if (next.x >= 0 && next.x < world.Width && next.y >= 0 && next.y < world.Height) {
+                    if (!world.IsBlocked(next) && !cameFrom.ContainsKey(next)) {
+                        queue.Enqueue(next);
+                        cameFrom[next] = current;
+                    }
                 }
             }
         }
+
+        if (!found) return null; // Não há caminho (o alvo está trancado pelas paredes da IA)
+
+        // Desfazer o caminho de trás para a frente
+        List<Vector2Int> path = new List<Vector2Int>();
+        Vector2Int curr = target;
+        while (curr != start) {
+            path.Add(curr);
+            curr = cameFrom[curr];
+        }
+        path.Add(start);
+        path.Reverse(); // Inverter para a ordem correta
+        return path;
     }
 }

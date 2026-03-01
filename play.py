@@ -4,10 +4,9 @@ import subprocess
 import yaml
 from rich import print
 
-# Importamos a personalidade HUMANA e a função de PUBLISH
 from brain.game_director import evolve_human_genome
 from db.evolution_logger import init_db, log_evolution_to_db
-from scripts.publish import publish_game # <--- NOVO IMPORT AQUI
+from scripts.publish import publish_game
 
 def load_yaml(path: str):
     with open(path, "r", encoding="utf-8") as f:
@@ -19,59 +18,53 @@ def launch_manual_test():
     init_db(db_path)
 
     release_dir = os.path.join("releases", "game_prod")
-    genome_path = os.path.join(release_dir, "game_genome.json")
+
+    # CAMINHOS
+    level_path = os.path.join(release_dir, "level_genome.json")
+    save_path = os.path.join(release_dir, "player_save.json")
     exe_path = os.path.join(release_dir, "Game001.exe")
     metrics_path = os.path.join(release_dir, "metrics.json")
 
-    # ---> A NOVA LÓGICA DE AUTO-PUBLISH <---
-    if not os.path.exists(exe_path) or not os.path.exists(genome_path):
+    # A LÓGICA DE AUTO-PUBLISH
+    if not os.path.exists(exe_path) or not os.path.exists(level_path):
         print(f"[yellow]Aviso: Jogo de produção não encontrado em {release_dir}.[/yellow]")
         print("[cyan]A iniciar a montagem da Release de Produção automaticamente...[/cyan]")
-        publish_game() # Chamamos o teu script de publish!
+        publish_game()
 
-        # Verificamos de novo se a compilação foi bem sucedida
-        if not os.path.exists(exe_path) or not os.path.exists(genome_path):
+        if not os.path.exists(exe_path) or not os.path.exists(level_path):
             print("[red]Erro crítico: Falha ao criar a Release. O Orquestrador já fez a primeira build na pasta projects?[/red]")
             return
 
-    # 2. Carrega o genoma
+    # 1. CARREGA A CAMPANHA (O Array)
     try:
-        with open(genome_path, "r", encoding="utf-8") as f:
-            full_genome_data = json.load(f)
+        with open(level_path, "r", encoding="utf-8") as f:
+            campaign = json.load(f)
+
+        # Blindagem caso o ficheiro antigo (dicionário único) ainda ande por aí
+        if isinstance(campaign, dict):
+            campaign = [campaign]
+
     except Exception as e:
-        print(f"[red]Erro ao ler JSON: {e}[/red]")
+        print(f"[red]Erro ao ler o level_genome.json: {e}[/red]")
         return
 
-    # Escolhe o primeiro modo
-    target_mode = "PointToPoint"
-    current_genome = None
-    genome_index = 0
+    # 2. CARREGA O SAVE DO JOGADOR (Para saber em que nível estás)
+    player_name = "Humano"
+    current_campaign_level = 1
+    if os.path.exists(save_path):
+        try:
+            with open(save_path, "r", encoding="utf-8") as f:
+                save_data = json.load(f)
+                player_name = save_data.get("playerName", "Humano")
+                current_campaign_level = save_data.get("currentCampaignLevel", 1)
+        except Exception:
+            pass
 
-    if "configs" in full_genome_data:
-        for i, c in enumerate(full_genome_data["configs"]):
-            if c.get("mode") == target_mode:
-                current_genome = c
-                genome_index = i
-                break
+    print(f"\n[bold cyan]🎮 Modo Manual ATIVADO, {player_name}![/bold cyan]")
+    print(f"[white]Estás no Nível {current_campaign_level} da Campanha.[/white]")
+    print("[white]A abrir o jogo... Dá o teu melhor! A IA está a ver.[/white]")
 
-        if current_genome is None and len(full_genome_data["configs"]) > 0:
-            current_genome = full_genome_data["configs"][0]
-            genome_index = 0
-            target_mode = current_genome.get("mode")
-
-    if current_genome is None:
-        print("[red]Erro: Modo não encontrado no Genoma.[/red]")
-        return
-
-    # Garante que as regras estão justas para um Humano começar (e escreve na RAIZ)
-    full_genome_data["userControl"] = True
-    if "rules" in current_genome and current_genome["rules"].get("timeLimit", 0) < 10:
-        current_genome["rules"]["timeLimit"] = 30.0
-
-    print(f"\n[bold cyan]🎮 Modo Manual ATIVADO! Modo: {target_mode}[/bold cyan]")
-    print("[white]A abrir o jogo de Produção... A IA vai avaliar a tua performance no final.[/white]")
-
-    # 3. Lança o jogo (Sem o check=True e com o cwd correto)
+    # 3. LANÇA O JOGO
     try:
         exe_dir = os.path.dirname(os.path.abspath(exe_path))
         subprocess.run([os.path.abspath(exe_path)], cwd=exe_dir)
@@ -79,36 +72,72 @@ def launch_manual_test():
         print(f"[red]Erro ao lançar o executável: {e}[/red]")
         return
 
-    # 4. Lê a telemetria pós-jogo
+    # 4. LÊ A TELEMETRIA PÓS-JOGO
     print("\n[cyan]Jogo terminado. A ler telemetria da tua sessão...[/cyan]")
     if not os.path.exists(metrics_path):
         print("[yellow]Aviso: metrics.json não gerado pelo jogo. Nenhuma evolução aplicada.[/yellow]")
         return
 
-    with open(metrics_path, "r", encoding="utf-8") as f:
-        metrics_data = json.load(f)
+    try:
+        with open(metrics_path, "r", encoding="utf-8") as f:
+            metrics_data = json.load(f)
+    except Exception as e:
+        print(f"[red]Erro ao ler as métricas: {e}[/red]")
+        return
 
-    print(f"[white]Métricas recebidas: Win Rate = {metrics_data.get('win_rate', 0.0)}[/white]")
+    # Descobre que nível é que jogaste
+    played_level_id = metrics_data.get("level_id", 1)
+    win_rate = metrics_data.get('win_rate', 0.0)
 
-    # 5. Chama o Game Director para avaliar o Humano
-    print("[cyan]A pedir ao Diretor de IA para balancear o jogo para ti...[/cyan]")
-    evolved_data = evolve_human_genome(config, metrics_data, current_genome)
+    print(f"[white]Métricas recebidas: Nível Jogado = {played_level_id} | Win Rate = {win_rate}[/white]")
 
-    if evolved_data and "new_genome" in evolved_data:
-        new_genome = evolved_data["new_genome"]
-        full_genome_data["configs"][genome_index] = new_genome
-        full_genome_data["userControl"] = True # Garante que ficas com o controlo
+    # 5. ENCONTRA O NÍVEL NA LISTA
+    current_level_genome = None
+    level_index = -1
+    for i, level in enumerate(campaign):
+        if level.get("level_id") == played_level_id:
+            current_level_genome = level
+            level_index = i
+            break
 
-        # Guarda na pasta de Produção
-        with open(genome_path, "w", encoding="utf-8") as f:
-            json.dump(full_genome_data, f, indent=2)
+    if current_level_genome is None:
+        print(f"[red]Erro: O Nível {played_level_id} reportado não existe no level_genome.json de Produção![/red]")
+        return
 
-        report_text = evolved_data.get("report", "No report text provided.")
-        log_evolution_to_db(db_path, metrics_data, new_genome, report_text)
-
-        print(f"[bold green]✅ Genoma evoluído gravado! O teu jogo foi ajustado.[/bold green]")
+    # 6. AVALIAÇÃO DA IA (Passa APENAS o nível jogado)
+    if win_rate >= 1.0:
+        print(f"[bold green]🎉 Passaste o Nível {played_level_id} com sucesso! Não é preciso facilitar o nível.[/bold green]")
+        # Como o humano passou, não precisamos de castigar o nível. Mas se quiseres que a IA o torne mais difícil,
+        # podes pedir-lhe! Por agora, deixamos seguir.
     else:
-        print("[red]Falha ao evoluir genoma. Tenta novamente.[/red]")
+        print(f"[cyan]Parece que tiveste dificuldades no Nível {played_level_id}. A pedir ao Diretor de IA para ajustar a dificuldade para ti...[/cyan]")
+
+        evolved_data = evolve_human_genome(config, metrics_data, current_level_genome)
+
+        if evolved_data and "new_genome" in evolved_data:
+            new_level_genome = evolved_data["new_genome"]
+
+            # Protege os dados vitais para a IA não estragar a campanha
+            new_level_genome["level_id"] = played_level_id
+            new_level_genome["mode"] = current_level_genome.get("mode", "PointToPoint")
+            new_level_genome["theme"] = current_level_genome.get("theme", "Cyberpunk Neon")
+
+            # Substitui o nível antigo pelo novo na Campanha
+            campaign[level_index] = new_level_genome
+
+            # Guarda o ARRAY na pasta de Produção E na raiz do teu workspace
+            with open(level_path, "w", encoding="utf-8") as f:
+                json.dump(campaign, f, indent=2)
+
+            with open("level_genome.json", "w", encoding="utf-8") as f:
+                json.dump(campaign, f, indent=2)
+
+            report_text = evolved_data.get("report", "Sem relatório.")
+            log_evolution_to_db(db_path, metrics_data, new_level_genome, report_text)
+
+            print(f"[bold green]✅ Nível {played_level_id} evoluído e gravado! Da próxima vez será mais justo.[/bold green]")
+        else:
+            print("[red]Falha ao evoluir o nível. Tenta novamente.[/red]")
 
 if __name__ == "__main__":
     launch_manual_test()

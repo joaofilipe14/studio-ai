@@ -5,28 +5,42 @@ O objetivo final do **Studio-AI** é criar um "Desenvolvedor Virtual" capaz de g
 
 ---
 
-## Fase 1 — Estabilidade e Loop de Feedback ✅ (Concluída)
+## Fase 1 — Estabilidade e Loop de Feedback ✅ (Fevereiro 2026)
 *(Motor Parametrizado, Exportação de Métricas, Diretor de IA via Ollama, DB SQLite)*
 
-## Fase 2 — Modos de Jogo e Complexidade Emergente 🚀 (Em Progresso)
+## Fase 2 — Modos de Jogo e Complexidade Emergente ✅ (Fevereiro 2026)
 - [x] **Diversidade de Modos:** Modos "PointToPoint" e "Collect".
 - [x] **Geração Procedural Avançada:** *Drunkard's Walk* para Labirintos.
 - [x] **Power-Ups e Armadilhas:** Modificadores de tempo e armadilhas.
-- [ ] **Visão Limitada (Fog of War):** Adicionar mecânicas de exploração onde o mapa está oculto (essencial para o terror de ficar encurralado na "Fuga").
-- [ ] **Densidade de Labirinto Real:** Alterar a geração de obstáculos para garantir corredores densos em vez de campos abertos.
+- [x] **Visão Limitada (Fog of War):** Adicionada a mecânica de `visionRadius` com luz pontual.
+- [x] **Densidade de Labirinto Real:** Transição de percentagens caóticas para limites absolutos (`obstacles.count`, `enemyCount`).
 
-## Fase 3 — Observabilidade e Dashboards (Data Science) 📊 ✅ (Concluída)
-*(Dashboard Streamlit, Visualização de Tendências, Explorador de Genomas)*
+## Fase 3 — Observabilidade e Dashboards (Data Science) 📊 ✅ (Fevereiro 2026)
+- [x] Dashboard Streamlit com separação de Tabs (Métricas vs Arte).
+- [x] Visualização de Tendências por Modo de Jogo.
+- [x] Diff Automático de Genomas e Logs do Diretor IA.
+- [x] Integração de API de Arte (Geração de Sprites e Texturas via SDXL + Rembg).
 
-## Fase 4 — O "Game Loop" Roguelite (Telemetria Humana) 👤 (Em Progresso)
-*Transformar o protótipo de IA num Action Roguelite de Sobrevivência.*
-- [x] **Telemetria de Jogador:** O jogo distingue Humanos de Bots.
-- [x] **Diretor de IA de Empatia:** A IA reage à frustração humana facilitando o jogo.
-- [ ] **Sistema de Moeda Dupla:** Implementar no Unity a separação entre "Moedas Apanhadas" (Ouro) e "Tempo Sobrante" (Cristais de Tempo) no ecrã de vitória.
-- [ ] **Hub / Main Menu (A Loja):** Uma cena inicial no Unity onde o jogador gasta o Ouro e os Cristais para comprar Upgrades Globais e Personagens.
-- [ ] **Sistema de Personagens (Classes):** Criar no Unity diferentes perfis de jogador (ex: Rápido/Frágil vs Lento/Resistente) que multiplicam as variáveis do `game_genome.json`.
+---
 
-## Fase 5 — Lançamento Autónomo (Cloud e Modding) ☁️
+## Fase 4 — O "Game Loop" Roguelite (Metajogo) 👤 (Início de Março 2026)
+*Transformar o protótipo de IA num Action Roguelite de Sobrevivência com progressão.*
+- [ ] **Refactorização Genética:** Dividir o `game_genome.json` em `level_genome.json`, `roster.json` e `player_save.json`.
+- [ ] **Hub / Main Menu:** Uma cena inicial no Unity (Menu Principal).
+- [ ] **Sistema de Personagens (Classes):** Implementar a escolha de classes (Ninja, Golem, Explorador) lidas a partir do `roster.json`.
+- [ ] **A Loja (Upgrades):** Usar o `total_collected` guardado no `player_save.json` para comprar vantagens permanentes (mais tempo inicial, resistência a armadilhas).
+- [ ] **Progressão de Dificuldade:** A IA começa a ditar temas visuais (ex: "Frozen Cave") com base no nível da campanha.
+
+## Fase 5 — Lançamento Server-Side e API ☁️ (Meados de Março 2026)
+*Preparar o sistema para viver fora do teu computador e comunicar com o mundo.*
+- [ ] **Backend Cloud (FastAPI):** Extrair o `game_director.py` para uma API REST. O jogo pede níveis à cloud em vez de correr Python localmente.
+- [ ] **Telemetria Global:** Base de dados na cloud (ex: Supabase/Firebase) para recolher *Win Rates* de dezenas de jogadores em simultâneo.
+- [ ] **A "Daily Run" (Desafio Diário):** Sincronizar todos os clientes com o mesmo `level_genome.json` gerado na madrugada.
+- [ ] **Leaderboards:** Tabela de pontuações global (Quem acabou mais rápido? Quem apanhou mais moedas?).
+
+## Fase 6 — Deploy Final & Polimento 🚀 (Final de Março / Abril 2026)
 *O Santo Graal: O jogo "vive" num servidor e evolui para toda uma comunidade.*
-- [ ] **Backend de Servidor (FastAPI):** Migrar a lógica do Orquestrador Python para a *cloud*.
-- [ ] **A "Daily Run" (Desafio Diário):** Sincronizar o cliente Unity com um genoma único gerado todas as madrugadas pela IA, com Leaderboards para ver quem ganha mais Moeda/Tempo.
+- [ ] **Exportação Final (Build):** Compilar executáveis otimizados para Windows, Mac e Linux (ou WebGL).
+- [ ] **Auto-Patching:** O jogo descarrega os novos *Sprites* e *Texturas* da cloud dinamicamente sempre que a IA decide mudar o tema diário.
+- [ ] **Lançamento (itch.io / Steam):** Publicar a página do jogo com os assets gerados pela própria IA.
+- [ ] **Modding Support:** Permitir à comunidade criar os seus próprios `roster.json`.

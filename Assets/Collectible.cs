@@ -1,1 +1,0 @@
-using UnityEngine;\npublic class Collectible : MonoBehaviour {\n    private GameManager gameManager;\n    void Start() {\n        gameManager = GameObject.FindObjectOfType<GameManager>();\n    }\n}

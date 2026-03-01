@@ -1,0 +1,30 @@
+{
+  "classes": [
+    {
+      "id": "Explorer",
+      "name": "O Explorador",
+      "description": "Equilibrado. Excelente visão no escuro.",
+      "spriteName": "PlayerSprite",
+      "cost": 0,
+      "stats": {
+        "speed": 6.0,
+        "acceleration": 12.0,
+        "visionRadius": 12.0,
+        "trapResistance": 1.0
+      }
+    },
+    {
+      "id": "Ninja",
+      "name": "Ninja Runner",
+      "description": "Muito rápido, mas a lanterna é fraca.",
+      "spriteName": "NinjaSprite",
+      "cost": 50,
+      "stats": {
+        "speed": 9.5,
+        "acceleration": 18.0,
+        "visionRadius": 5.0,
+        "trapResistance": 1.0
+      }
+    }
+  ]
+}
