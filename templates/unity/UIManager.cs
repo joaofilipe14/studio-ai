@@ -5,12 +5,11 @@ using UnityEngine.Events;
 
 public class UIManager : MonoBehaviour {
     public static UIManager Instance { get; private set; }
-
     private GameObject canvasGO;
     private GameObject currentMenu;
     private Font defaultFont;
 
-    public enum UIState { None, Title, Vault, HUD, EndScreen }
+    public enum UIState { None, Title, Vault, HUD, EndScreen, Pause }
     public UIState currentState = UIState.None;
 
     private Text timerText;
@@ -21,16 +20,13 @@ public class UIManager : MonoBehaviour {
 
     void Awake() {
         if (Instance == null) Instance = this;
-
         defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
         if (defaultFont == null) defaultFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-
         SetupCanvas();
         SetupEventSystem();
     }
 
-    void Start()
-    {
+    void Start() {
         if (Application.isBatchMode) {
             GameManager.Instance.StartNewRun();
         } else {
@@ -76,11 +72,65 @@ public class UIManager : MonoBehaviour {
         if (currentMenu != null) Destroy(currentMenu);
     }
 
+    public void ShowGlossary()
+    {
+        ClearCurrentMenu();
+        currentState = UIState.Pause; // Mantém o estado de pausa para bloquear o jogo atrás
+        currentMenu = CreatePanel("GlossaryMenu", new Color(0, 0, 0, 0.9f));
+
+        // Título Central
+        CreateText(currentMenu.transform, "MANUAL DE SOBREVIVÊNCIA", 65, new Vector2(0, 350), Color.yellow);
+
+        // --- CATEGORIA: OBJETIVOS ---
+        CreateText(currentMenu.transform, "OBJETIVOS", 40, new Vector2(-400, 200), Color.cyan);
+        CreateText(currentMenu.transform, "💠 META: Alcança o portal para vencer o nível.", 28, new Vector2(-400, 140), Color.white);
+        CreateText(currentMenu.transform, "💰 MOEDAS: Recolhe para comprar Vidas e Classes no Cofre.", 28, new Vector2(-400, 90), Color.white);
+
+        // --- CATEGORIA: POWER-UPS ---
+        CreateText(currentMenu.transform, "MELHORIAS (Power-Ups)", 40, new Vector2(-400, -50), Color.magenta);
+        CreateText(currentMenu.transform, "🔵 BATERIA: Concede +5 segundos de tempo extra.", 28, new Vector2(-400, -110), Color.white);
+        CreateText(currentMenu.transform, "🟣 RAIO: Aumenta a velocidade de movimento temporariamente.", 28, new Vector2(-400, -160), Color.white);
+
+        // --- CATEGORIA: PERIGOS ---
+        CreateText(currentMenu.transform, "PERIGOS", 40, new Vector2(300, 200), Color.red);
+        CreateText(currentMenu.transform, "⚠️ ARMADILHA: Reduz o tempo restante ao pisar.", 28, new Vector2(300, 140), Color.white);
+        CreateText(currentMenu.transform, "👾 INIMIGO: Perseguidores letais. Foge deles!", 28, new Vector2(300, 90), Color.white);
+
+        // Dica de Gameplay
+        CreateText(currentMenu.transform, "Dica: O Ninja tem maior velocidade mas visão limitada.", 24, new Vector2(0, -300), Color.gray);
+
+        // Botão para Voltar ao Menu de Pausa
+        CreateButton(currentMenu.transform, "VOLTAR", new Vector2(0, -400), new Vector2(250, 60), () => {
+            ShowPauseMenu();
+        });
+    }
+
+    public void ShowPauseMenu()
+    {
+        ClearCurrentMenu();
+        currentState = UIState.Pause;
+        UnlockMouse();
+        currentMenu = CreatePanel("PauseMenu", new Color(0, 0, 0, 0.6f));
+
+        CreateText(currentMenu.transform, "JOGO PAUSADO", 60, new Vector2(0, 150), Color.white);
+
+        CreateButton(currentMenu.transform, "CONTINUAR", new Vector2(0, 20), new Vector2(300, 60), () => {
+            GameManager.Instance.TogglePause();
+        });
+        CreateButton(currentMenu.transform, "GLOSSÁRIO", new Vector2(0, -30), new Vector2(300, 60), () => {
+            ShowGlossary();
+        });
+
+        CreateButton(currentMenu.transform, "MENU PRINCIPAL", new Vector2(0, -70), new Vector2(300, 60), () => {
+            GameManager.Instance.TogglePause(); // Tira a pausa antes de sair
+            GameManager.Instance.UI_ReturnToMenu();
+        });
+    }
+
     // ==========================================
     // ECRÃS
     // ==========================================
-    public void ShowTitleScreen()
-    {
+    public void ShowTitleScreen() {
         ClearCurrentMenu();
         UnlockMouse();
         currentState = UIState.Title;
@@ -91,19 +141,17 @@ public class UIManager : MonoBehaviour {
         int nivelAtual = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.currentCampaignLevel : 1;
 
         CreateText(currentMenu.transform, "STUDIO-AI: A SIMULAÇÃO", 80, new Vector2(0, 250), Color.cyan);
-
-        // MOSTRA A INFO DO JOGADOR A AMARELO!
         CreateText(currentMenu.transform, $"Progresso: Nível {nivelAtual} | Cofre: {moedas} Moedas", 35, new Vector2(0, 120), Color.yellow);
-
         CreateButton(currentMenu.transform, "INICIAR SIMULAÇÃO", new Vector2(0, -50), new Vector2(300, 60), () => {
             ShowHUD();
             GameManager.Instance.StartNewRun();
         });
-
         CreateButton(currentMenu.transform, "O COFRE (Classes)", new Vector2(0, -130), new Vector2(300, 60), () => {
             ShowVaultScreen();
         });
-
+        CreateButton(currentMenu.transform, "RECOMECAR TUDO", new Vector2(0, -130), new Vector2(300, 60), () => {
+            GameManager.Instance.ResetTotalProgress();
+        });
         CreateButton(currentMenu.transform, "SAIR", new Vector2(0, -210), new Vector2(300, 60), () => {
             Application.Quit();
         });
@@ -113,33 +161,138 @@ public class UIManager : MonoBehaviour {
         ClearCurrentMenu();
         UnlockMouse();
         currentState = UIState.Title;
-        currentMenu = CreatePanel("VaultScreen", new Color(0.1f, 0.2f, 0.1f, 1f)); // Fundo verde escuro
+        currentMenu = CreatePanel("VaultScreen", new Color(0.1f, 0.15f, 0.2f, 1f)); // Fundo azul escuro/néon
 
         int moedas = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.wallet.totalCoins : 0;
         int vidasMaximas = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.stats.maxLives : 3;
 
-        CreateText(currentMenu.transform, "O COFRE DE UPGRADES", 60, new Vector2(0, 250), Color.yellow);
-        CreateText(currentMenu.transform, $"Saldo Atual: {moedas} Moedas", 40, new Vector2(0, 150), Color.white);
-        CreateText(currentMenu.transform, $"Vidas Máximas Atuais: {vidasMaximas}", 30, new Vector2(0, 80), Color.cyan);
+        // 🛡️ Segurança para a lista de classes do Save
+        if (GameManager.Instance.currentPlayer != null && GameManager.Instance.currentPlayer.unlockedClasses == null) {
+            GameManager.Instance.currentPlayer.unlockedClasses = new System.Collections.Generic.List<string> { "Explorer" };
+        }
 
-        // 🚨 BOTÃO DE COMPRA: Custa 50 moedas e dá-te +1 Vida permanentemente!
-        CreateButton(currentMenu.transform, "Comprar +1 Vida (50 M)", new Vector2(0, -20), new Vector2(400, 60), () => {
-            if (GameManager.Instance.currentPlayer.wallet.totalCoins >= 50) {
-                // Paga o preço
+        CreateText(currentMenu.transform, "O COFRE", 60, new Vector2(0, 420), Color.yellow);
+        CreateText(currentMenu.transform, $"O teu saldo: {moedas} Moedas  |  Vidas Máximas: {vidasMaximas}", 30, new Vector2(0, 350), Color.cyan);
+
+        // ==========================================
+        // GRELHA VISUAL (UPGRADES + CLASSES)
+        // ==========================================
+        float startX = -250f;
+        float startY = 100f;  // Subimos um pouco para caber 2 linhas sem bater no "Voltar"
+        float espacamentoX = 500f;
+        float espacamentoY = -400f;
+        int colunas = 2;
+        int contador = 0;
+
+        // ------------------------------------------
+        // CARTA 1: VIDA EXTRA
+        // ------------------------------------------
+        int l_vida = contador / colunas;
+        int c_vida = contador % colunas;
+        float posX_vida = startX + (c_vida * espacamentoX);
+        float posY_vida = startY + (l_vida * espacamentoY);
+
+        GameObject cardVida = new GameObject("Card_Vida");
+        cardVida.transform.SetParent(currentMenu.transform, false);
+        Image bgVida = cardVida.AddComponent<Image>();
+        bgVida.color = new Color(0.15f, 0.1f, 0.1f, 0.9f); // Fundo ligeiramente avermelhado
+        RectTransform rectVida = cardVida.GetComponent<RectTransform>();
+        rectVida.anchoredPosition = new Vector2(posX_vida, posY_vida);
+        rectVida.sizeDelta = new Vector2(350, 380);
+
+        CreateText(cardVida.transform, "Vida Extra", 35, new Vector2(0, 150), Color.white);
+
+        // Em vez de Imagem, usamos um Coração Gigante Textual
+        CreateText(cardVida.transform, "❤️", 120, new Vector2(0, 30), Color.white);
+
+        Button btnVida = CreateButton(cardVida.transform, "COMPRAR (50 M)", new Vector2(0, -130), new Vector2(300, 60), () => {
+            if (GameManager.Instance.currentPlayer.wallet.totalCoins >= 50) { // 🚨 Corrigido para 50!
                 GameManager.Instance.currentPlayer.wallet.totalCoins -= 50;
-                // Recebe o upgrade
                 GameManager.Instance.currentPlayer.stats.maxLives++;
-                GameManager.Instance.currentPlayer.stats.currentLives++; // Dá logo a vida para usar
-                // Guarda o save
+                GameManager.Instance.currentPlayer.stats.currentLives++;
                 GameManager.Instance.currentPlayer.Save(System.IO.Path.Combine(Application.dataPath, "..", "player_save.json"));
-                // Atualiza o ecrã para veres o novo saldo
                 ShowVaultScreen();
             } else {
                 Debug.Log("Dinheiro insuficiente!");
             }
         });
 
-        CreateButton(currentMenu.transform, "VOLTAR AO MENU", new Vector2(0, -180), new Vector2(300, 60), () => {
+        // Fica vermelho se não houver dinheiro
+        if (moedas < 50) btnVida.GetComponent<Image>().color = new Color(0.6f, 0.2f, 0.2f, 1f);
+
+        contador++; // Avançamos um espaço na grelha!
+
+        // ------------------------------------------
+        // CARTAS 2+: CLASSES DE PERSONAGENS
+        // ------------------------------------------
+        if (GameManager.Instance.roster != null && GameManager.Instance.roster.classes != null) {
+            foreach (var c in GameManager.Instance.roster.classes) {
+                bool isUnlocked = GameManager.Instance.currentPlayer.unlockedClasses.Contains(c.id);
+                bool isEquipped = GameManager.Instance.currentPlayer.loadout.selectedClassID == c.id;
+
+                int linha = contador / colunas;
+                int coluna = contador % colunas;
+                float posX = startX + (coluna * espacamentoX);
+                float posY = startY + (linha * espacamentoY);
+
+                GameObject cardGO = new GameObject("Card_" + c.name);
+                cardGO.transform.SetParent(currentMenu.transform, false);
+                Image cardBg = cardGO.AddComponent<Image>();
+                cardBg.color = isEquipped ? new Color(0.2f, 0.5f, 0.2f, 0.8f) : new Color(0.1f, 0.1f, 0.1f, 0.8f);
+                RectTransform cardRect = cardGO.GetComponent<RectTransform>();
+                cardRect.anchoredPosition = new Vector2(posX, posY);
+                cardRect.sizeDelta = new Vector2(350, 380); // Ajustado para ficar igual à Vida
+
+                GameObject iconGO = new GameObject("Icon");
+                iconGO.transform.SetParent(cardGO.transform, false);
+                RawImage img = iconGO.AddComponent<RawImage>();
+
+                Texture2D tex = Resources.Load<Texture2D>("Sprites/" + c.spriteName);
+                if (tex == null) tex = Resources.Load<Texture2D>("Sprites/PlayerSprite");
+                if (tex != null) img.texture = tex;
+
+                RectTransform iconRect = iconGO.GetComponent<RectTransform>();
+                iconRect.anchoredPosition = new Vector2(0, 30); // Fica centrado no peito da carta
+                iconRect.sizeDelta = new Vector2(200, 200);
+
+                CreateText(cardGO.transform, c.name, 35, new Vector2(0, 150), Color.white).GetComponent<RectTransform>().sizeDelta = new Vector2(330, 50);
+
+                string btnText = "";
+                UnityEngine.Events.UnityAction action = null;
+
+                if (isEquipped) {
+                    btnText = "✔️ EQUIPADO";
+                    action = () => { Debug.Log("Já está equipado!"); };
+                } else if (isUnlocked) {
+                    btnText = "EQUIPAR";
+                    action = () => {
+                        GameManager.Instance.SetSelectedClass(c);
+                        ShowVaultScreen();
+                    };
+                } else {
+                    btnText = $"COMPRAR ({c.cost} M)";
+                    action = () => {
+                        if (GameManager.Instance.currentPlayer.wallet.totalCoins >= c.cost) {
+                            GameManager.Instance.currentPlayer.wallet.totalCoins -= c.cost;
+                            GameManager.Instance.currentPlayer.unlockedClasses.Add(c.id);
+                            GameManager.Instance.SetSelectedClass(c);
+                            GameManager.Instance.currentPlayer.Save(System.IO.Path.Combine(Application.dataPath, "..", "player_save.json"));
+                            ShowVaultScreen();
+                        }
+                    };
+                }
+
+                Button actionBtn = CreateButton(cardGO.transform, btnText, new Vector2(0, -130), new Vector2(300, 60), action);
+
+                if (!isUnlocked && GameManager.Instance.currentPlayer.wallet.totalCoins < c.cost) {
+                    actionBtn.GetComponent<Image>().color = new Color(0.6f, 0.2f, 0.2f, 1f);
+                }
+                contador++;
+            }
+        }
+
+        // 3. BOTÃO DE VOLTAR (No fundo ao centro, flutuante)
+        CreateButton(currentMenu.transform, "VOLTAR AO MENU", new Vector2(0, -470), new Vector2(300, 60), () => {
             ShowTitleScreen();
         });
     }
@@ -183,8 +336,11 @@ public class UIManager : MonoBehaviour {
         levelRect.pivot = new Vector2(0.5f, 1);
         levelText.alignment = TextAnchor.UpperCenter;
 
-        // 🚨 5. NOVO: Criar Info das Vidas (Fundo Direito)
-        livesText = CreateText(currentMenu.transform, "❤️ Vidas: --", 40, new Vector2(-100, 50), Color.red);
+        string initialLives = "--";
+        if (GameManager.Instance != null && GameManager.Instance.currentPlayer != null) {
+            initialLives = GameManager.Instance.currentPlayer.stats.currentLives.ToString();
+        }
+        livesText = CreateText(currentMenu.transform, $"❤️ Vidas: {initialLives}", 40, new Vector2(-100, 50), Color.red);
         RectTransform livesRect = livesText.GetComponent<RectTransform>();
         livesRect.anchorMin = new Vector2(1, 0); // Fica preso ao Canto Inferior Direito
         livesRect.anchorMax = new Vector2(1, 0);

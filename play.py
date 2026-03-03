@@ -143,7 +143,7 @@ def launch_manual_test():
                 json.dump(campaign, f, indent=2)
 
             report_text = evolved_data.get("report", "Sem relatório.")
-            log_evolution_to_db(db_path, metrics_data, new_level_genome, report_text)
+            log_evolution_to_db(db_path, metrics_data, new_level_genome, report_text, True)
 
             print(f"[bold green]✅ Nível {played_level_id} evoluído e gravado! Da próxima vez será mais justo.[/bold green]")
         else:

@@ -45,6 +45,7 @@ public class GameManager : MonoBehaviour
     public PlayerSave currentPlayer { get; private set; }
     public CharacterClass selectedClass { get; private set; }
     public Roster roster { get; private set; }
+    private bool isPaused = false;
 
     [Header("Configurações de Grelha")]
     public int gridWidth = 15;
@@ -54,6 +55,7 @@ public class GameManager : MonoBehaviour
 
     [Header("Regras de Jogo")]
     public int seed;
+    public int currentActiveSeed;
     public float timeLimit = 25f;
     public float currentTimer;
     public int rounds = 30; // Limite de tentativas globais de segurança para o Bot
@@ -82,6 +84,7 @@ public class GameManager : MonoBehaviour
     public int trapsHitCount = 0;
     private int totalCollectedGame = 0;
     private float totalPlayTime = 0f;
+    private float roundPlayTime = 0f;
 
     [Header("Relatório Global")]
     public CampaignMetrics globalMetrics = new CampaignMetrics();
@@ -106,13 +109,15 @@ public class GameManager : MonoBehaviour
         totalAttempts++;
         if (totalAttempts > rounds || currentLevel == null) { QuitGame(); return; }
 
+        currentLevelAttempts++; // Conta logo a tentativa 1 antes de jogares!
+        roundPlayTime = 0f;     // Zera o relógio da ronda
+
         finished = false;
         isPlaying = true;
         collectedInRound = 0;
 
-        // 🚨 IMPORTANTE: Agora precisamos de ir buscar os dados ao Nível Atual todas as vezes,
-        // porque a cada vitória passamos para um índice novo no Array!
         currentMode = currentLevel.mode;
+        Debug.Log($"Current mode: {currentMode}");
         timeLimit = currentLevel.rules.timeLimit;
         if (timeLimit <= 0.1f) timeLimit = 30f;
         collectibles = currentLevel.rules.targetCount;
@@ -124,29 +129,36 @@ public class GameManager : MonoBehaviour
 
         currentTimer = timeLimit;
 
-        Debug.Log($"A iniciar Nível {currentLevel.level_id} | Modo: {currentMode} | Obstáculos: {currentLevel.obstacles.count}");
+        // 🚨 SEMENTES DINÂMICAS (ROGUELIKE)
+        // 1ª Tentativa = O Labirinto Original do Genoma.
+        // Tentativas Seguintes = Gera uma semente caótica! Labirinto novo!
+        if (currentLevelAttempts <= 1) {
+            currentActiveSeed = seed;
+        } else {
+            currentActiveSeed = seed + UnityEngine.Random.Range(1000, 99999);
+        }
+
+        Debug.Log($"A iniciar Nível {currentLevel.level_id} | Semente Ativa: {currentActiveSeed} | Obstáculos: {currentLevel.obstacles.count}");
 
         if (!Application.isBatchMode && GameObject.Find("BackgroundMusic") == null) SetupAudio();
 
         if (world == null) world = gameObject.AddComponent<GridWorld>();
 
-        // Usamos a semente exata do genome + total de tentativas para não repetir labirintos se morreres
-        int activeSeed = seed + totalAttempts;
-        world.Build(gridWidth, gridHeight, cellSize, currentLevel.obstacles.count, activeSeed);
+        // 🚨 O Mundo 3D usa agora a Semente Dinâmica
+        world.Build(gridWidth, gridHeight, cellSize, currentLevel.obstacles.count, currentActiveSeed);
 
         CleanupScene();
         BuildFloorAndObstacles();
 
-        System.Random rng = new System.Random(activeSeed);
+        // 🚨 A colocação dos itens também muda de sítio com a nova Semente!
+        System.Random rng = new System.Random(currentActiveSeed);
         LevelSpawner.ResetSpawns();
 
         float vRadius = selectedClass != null ? selectedClass.stats.visionRadius : 8.0f;
         string spriteToLoad = selectedClass != null ? selectedClass.spriteName : "PlayerSprite";
         if (agent == null) {
-            // Se for a primeira vez, cria o modelo 3D pesado
             agent = LevelSpawner.SpawnAgent(world, rng, agentMoveSpeed, userControl, vRadius, spriteToLoad);
         } else {
-            // Se ele já existir, só o teletransportamos! (Poupa 1024 cubos!)
             Vector2Int newStart = LevelSpawner.GetUniqueSpawnPosition(world, rng);
             agent.world = world;
             agent.moveSpeed = agentMoveSpeed;
@@ -154,7 +166,6 @@ public class GameManager : MonoBehaviour
         }
        LevelSpawner.CalculateReachableArea(world, agent.gridPos);
 
-       // --- CÁLCULO DE DISTÂNCIAS ---
        float minGoalDistance = Mathf.Max(gridWidth, gridHeight) * 0.4f;
        float minEnemySafeDistance = Mathf.Max(gridWidth, gridHeight) * 0.3f;
 
@@ -171,6 +182,22 @@ public class GameManager : MonoBehaviour
 
         if (currentLevel.rules.trapCount > 0)
             LevelSpawner.SpawnTraps(world, rng, currentLevel.rules.trapCount, currentLevel.rules.trapPenalty);
+        if (userControl) {
+            Cursor.visible = false;
+            Cursor.lockState = CursorLockMode.Locked;
+        }
+    }
+
+    public void ResetTotalProgress() {
+        string savePath = Path.Combine(Application.dataPath, "..", "player_save.json");
+        if (File.Exists(savePath)) {
+            File.Delete(savePath); // Apaga o ficheiro físico
+            Debug.Log("Ficheiro de Save apagado. Reiniciando progresso...");
+        }
+        // Recarrega as configurações base (o LoadGenomeConfig já cria um save novo se não existir)
+        LoadGenomeConfig();
+        // Volta ao Menu Principal com os dados limpos
+        UI_ReturnToMenu();
     }
 
     public void SetSelectedClass(CharacterClass newClass) {
@@ -204,7 +231,7 @@ public class GameManager : MonoBehaviour
                     obs.name = "Obstacle_" + x + "_" + z;
                     obs.GetComponent<Renderer>().material = obsMat;
 
-                    System.Random rng = new System.Random(seed + x + z);
+                    System.Random rng = new System.Random(currentActiveSeed + x + z);
                     float randomScale = (float)rng.NextDouble() * (currentLevel.obstacles.maxScale - currentLevel.obstacles.minScale) + currentLevel.obstacles.minScale;
 
                     obs.transform.localScale = new Vector3(0.9f * cellSize, randomScale, 0.9f * cellSize);
@@ -301,12 +328,33 @@ public class GameManager : MonoBehaviour
     }
 
     void Update() {
-        if (!isPlaying || finished) return;
+        if (Input.GetKeyDown(KeyCode.Escape) && isPlaying && !finished) {
+            TogglePause();
+        }
+        if (!isPlaying || finished || isPaused) return;
         totalPlayTime += Time.deltaTime;
+        roundPlayTime += Time.deltaTime;
         currentTimer -= Time.deltaTime;
         if (currentTimer <= 0) {
             currentTimer = 0;
             Lose("TEMPO ESGOTADO");
+        }
+    }
+
+    public void TogglePause() {
+        isPaused = !isPaused;
+
+        if (isPaused) {
+            Time.timeScale = 0f; // Congela o motor de física e timers
+            UIManager.Instance.ShowPauseMenu();
+        } else {
+            Time.timeScale = 1f; // Retoma o tempo normal
+            UIManager.Instance.ShowHUD();
+            // Bloqueia o rato de volta se for modo humano
+            if (userControl) {
+                Cursor.visible = false;
+                Cursor.lockState = CursorLockMode.Locked;
+            }
         }
     }
 
@@ -315,8 +363,11 @@ public class GameManager : MonoBehaviour
         finished = true;
         isPlaying = false;
         winsCount++;
-        string statsMsg = $"Nível {currentLevel.level_id} Concluído!\nTempo Sobrante: {currentTimer:F1}s\nMoedas: {collectedInRound}";
-        Debug.Log("Vitoria!! no nivel " + currentLevel.level_id);
+
+        // 🚨 LOG MODO DEV (Vai para o Terminal Python)
+        Debug.Log($"[ROUND STATS] Nível: {currentLevel.level_id} | Tentativa: {currentLevelAttempts} | Resultado: VITÓRIA | Tempo: {roundPlayTime:F1}s | Moedas: {collectedInRound}");
+
+        string statsMsg = $"Nível {currentLevel.level_id} Concluído!\nTempo Usado: {roundPlayTime:F1}s\nMoedas: {collectedInRound}";
         // 1. GUARDA O RELATÓRIO DESTE NÍVEL ANTES DE AVANÇAR
         globalMetrics.level_reports.Add(new LevelReport {
             level_id = currentLevel != null ? currentLevel.level_id : 1,
@@ -360,8 +411,7 @@ public class GameManager : MonoBehaviour
         finished = true;
         isPlaying = false;
         stuckCount++;
-        currentLevelAttempts++; // Conta uma tentativa
-        Debug.Log("Foi apanhado!");
+        Debug.Log($"[ROUND STATS] Nível: {currentLevel.level_id} | Tentativa: {currentLevelAttempts} | Resultado: MORTO | Sobreviveu: {roundPlayTime:F1}s | Moedas: {collectedInRound}");
         if (!userControl) {
             // LÓGICA DO BOT (Testador)
             if (currentLevelAttempts >= botMaxAttempts) {
@@ -397,6 +447,7 @@ public class GameManager : MonoBehaviour
         finished = true;
         isPlaying = false;
         timeoutsCount++;
+        Debug.Log($"[ROUND STATS] Nível: {currentLevel.level_id} | Tentativa: {currentLevelAttempts} | Resultado: TIMEOUT | Sobreviveu: {roundPlayTime:F1}s | Moedas: {collectedInRound}");
         if (userControl && currentPlayer != null) {
             currentPlayer.wallet.totalCoins += collectedInRound;
             currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
@@ -447,12 +498,16 @@ public class GameManager : MonoBehaviour
     }
 
     public void UI_ReturnToMenu() {
+        Time.timeScale = 1f; // 🚨 Garante que o jogo não fica "congelado" no menu
+        isPaused = false;
         if (UIManager.Instance != null) {
             UIManager.Instance.ShowTitleScreen(); // Abre o Menu Principal
         }
         CleanupScene();
         if (agent != null) Destroy(agent.gameObject);
         isPlaying = false;
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
     }
 
     void QuitGame() {

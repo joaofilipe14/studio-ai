@@ -252,10 +252,9 @@ def call_tool(
                 preflight_files = [
                     (os.path.join(editor_dir, "BuildScript.cs"), "BuildScript.cs"),
                     (os.path.join(assets_dir, "SimpleAgent.cs"), "SimpleAgent.cs"),
-                    (os.path.join(assets_dir, "Goal.cs"), "Goal.cs"),
+                    (os.path.join(assets_dir, "GameObjective.cs"), "GameObjective.cs"),
                     (os.path.join(assets_dir, "GameManager.cs"), "GameManager.cs"),
                     (os.path.join(assets_dir, "GameGenome.cs"), "GameGenome.cs"),
-                    (os.path.join(assets_dir, "Collectible.cs"), "Collectible.cs"),
                     (os.path.join(assets_dir, "ChaserAI.cs"), "ChaserAI.cs"),
                     (os.path.join(assets_dir, "GridWorld.cs"), "GridWorld.cs"),
                     (os.path.join(assets_dir, "PowerUp.cs"), "PowerUp.cs"),
@@ -273,7 +272,7 @@ def call_tool(
                         with open(dst, "w", encoding="utf-8") as f:
                             f.write(content)
                     except FileNotFoundError:
-                        if tmpl in ("SimpleAgent.cs", "Goal.cs"): continue
+                        if tmpl in ("SimpleAgent.cs", "GameObjective.cs"): continue
                         return {"ok": False, "output": f"Missing template {tmpl}", "data": None}
                     except Exception as e:
                         return {"ok": False, "output": f"Failed writing {tmpl}: {e}", "data": None}
@@ -306,10 +305,9 @@ def call_tool(
         templates_map = {
             "/assets/editor/buildscript.cs": "BuildScript.cs",
             "/assets/simpleagent.cs": "SimpleAgent.cs",
-            "/assets/goal.cs": "Goal.cs",
+            "/assets/gameobjective.cs": "GameObjective.cs",
             "/assets/gamemanager.cs": "GameManager.cs",
             "/assets/gamegenome.cs": "GameGenome.cs",
-            "/assets/collectible.cs": "Collectible.cs",
             "/assets/chaserai.cs": "ChaserAI.cs",
             "/assets/gridworld.cs": "GridWorld.cs",
             "/assets/powerup.cs": "PowerUp.cs",

@@ -13,34 +13,37 @@ O objetivo final do **Studio-AI** é criar um "Desenvolvedor Virtual" capaz de g
 - [x] **Geração Procedural Avançada:** *Drunkard's Walk* para Labirintos.
 - [x] **Power-Ups e Armadilhas:** Modificadores de tempo e armadilhas.
 - [x] **Visão Limitada (Fog of War):** Adicionada a mecânica de `visionRadius` com luz pontual.
-- [x] **Densidade de Labirinto Real:** Transição de percentagens caóticas para limites absolutos (`obstacles.count`, `enemyCount`).
 
 ## Fase 3 — Observabilidade e Dashboards (Data Science) 📊 ✅ (Fevereiro 2026)
 - [x] Dashboard Streamlit com separação de Tabs (Métricas vs Arte).
-- [x] Visualização de Tendências por Modo de Jogo.
+- [x] Visualização de Tendências por Modo de Jogo e por Nível.
 - [x] Diff Automático de Genomas e Logs do Diretor IA.
-- [x] Integração de API de Arte (Geração de Sprites e Texturas via SDXL + Rembg).
+- [x] Estúdio de Arte IA: Geração de Asset Packs (8 texturas/sprites) via SDXL + Rembg.
 
 ---
 
-## Fase 4 — O "Game Loop" Roguelite (Metajogo) 👤 (Início de Março 2026)
-*Transformar o protótipo de IA num Action Roguelite de Sobrevivência com progressão.*
-- [ ] **Refactorização Genética:** Dividir o `game_genome.json` em `level_genome.json`, `roster.json` e `player_save.json`.
-- [ ] **Hub / Main Menu:** Uma cena inicial no Unity (Menu Principal).
-- [ ] **Sistema de Personagens (Classes):** Implementar a escolha de classes (Ninja, Golem, Explorador) lidas a partir do `roster.json`.
-- [ ] **A Loja (Upgrades):** Usar o `total_collected` guardado no `player_save.json` para comprar vantagens permanentes (mais tempo inicial, resistência a armadilhas).
-- [ ] **Progressão de Dificuldade:** A IA começa a ditar temas visuais (ex: "Frozen Cave") com base no nível da campanha.
+## Fase 4 — O "Game Loop" Roguelite (Metajogo) 👤 (Em curso)
+*Foco em Polimento, UX e Retenção de Jogadores.*
 
-## Fase 5 — Lançamento Server-Side e API ☁️ (Meados de Março 2026)
-*Preparar o sistema para viver fora do teu computador e comunicar com o mundo.*
-- [ ] **Backend Cloud (FastAPI):** Extrair o `game_director.py` para uma API REST. O jogo pede níveis à cloud em vez de correr Python localmente.
-- [ ] **Telemetria Global:** Base de dados na cloud (ex: Supabase/Firebase) para recolher *Win Rates* de dezenas de jogadores em simultâneo.
-- [ ] **A "Daily Run" (Desafio Diário):** Sincronizar todos os clientes com o mesmo `level_genome.json` gerado na madrugada.
-- [ ] **Leaderboards:** Tabela de pontuações global (Quem acabou mais rápido? Quem apanhou mais moedas?).
+- [x] **Refactorização Genética:** Divisão do genome em listas de níveis, roster e saves.
+- [x] **Sistema de Personagens:** Escolha de classes via `roster.json` e compra de vidas.
+- [ ] **Polimento da Câmara:** Suavizar a transição e rotação da câmara para evitar mudanças bruscas que causam tonturas.
+- [ ] **Glossário de Itens:** Adicionar um ecrã ou menu de ajuda que explique o que faz cada item (Moedas, Power-ups, Armadilhas).
+- [ ] **Sistema de Checkpoint/Save-Time:** Implementar um indicador de quando o jogo foi guardado ou permitir guardar progresso a meio da run.
+- [ ] **Botão de Reiniciar:** Adicionar um botão "Recomeçar Campanha" no menu ou após o Game Over para limpar o progresso atual.
+- [ ] **UI Adaptativa:** Melhorar os menus para resoluções variadas e preparar para interações táteis.
 
-## Fase 6 — Deploy Final & Polimento 🚀 (Final de Março / Abril 2026)
-*O Santo Graal: O jogo "vive" num servidor e evolui para toda uma comunidade.*
-- [ ] **Exportação Final (Build):** Compilar executáveis otimizados para Windows, Mac e Linux (ou WebGL).
-- [ ] **Auto-Patching:** O jogo descarrega os novos *Sprites* e *Texturas* da cloud dinamicamente sempre que a IA decide mudar o tema diário.
-- [ ] **Lançamento (itch.io / Steam):** Publicar a página do jogo com os assets gerados pela própria IA.
-- [ ] **Modding Support:** Permitir à comunidade criar os seus próprios `roster.json`.
+## Fase 5 — Lançamento Server-Side e Mobile Cloud ☁️📱
+*Preparar o sistema para viver na Web e em dispositivos móveis.*
+
+- [ ] **Backend Cloud (FastAPI):** Migrar a evolução da IA para um servidor remoto (essencial para Mobile).
+- [ ] **Versão Mobile (Android/iOS):**
+    - [ ] Implementar Joystick Virtual para movimento tátil.
+    - [ ] Otimização de Voxels para performance em telemóveis.
+    - [ ] Interface de utilizador escalável para ecrãs pequenos.
+- [ ] **Telemetria Global:** Base de dados na cloud para comparar performance entre jogadores PC e Mobile.
+- [ ] **Leaderboards Globais:** Tabela de pontuações sincronizada via API.
+
+## Fase 6 — Deploy Final & Polimento 🚀
+- [ ] **Lançamento Multiplataforma:** PC (Itch.io) e Mobile (APK/App Store).
+- [ ] **Auto-Patching:** Download de assets (sprites/texturas) dinamicamente via API.

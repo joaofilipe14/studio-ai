@@ -157,7 +157,7 @@ public static class LevelSpawner
         for (int i = 0; i < count; i++) {
             Vector2Int pos = GetUniqueSpawnPositionFarFrom(world, rng, playerPos, minSafeDistance);
 
-            // 🚨 NOVO: INIMIGOS EM VOXELS (3D)!
+            // INIMIGOS EM VOXELS (3D)!
             GameObject enemy = new GameObject("Chaser_" + i);
 
             Texture2D rawTex = Resources.Load<Texture2D>("Sprites/EnemySprite");
@@ -190,7 +190,7 @@ public static class LevelSpawner
         GameObject goal = GameObject.CreatePrimitive(PrimitiveType.Cube);
         goal.name = "Goal";
 
-        // 🚨 NOVO: APLICA A TEXTURA DA META
+        // APLICA A TEXTURA DA META
         goal.GetComponent<Renderer>().material = CreateTexturedMaterial("GoalTexture", Color.cyan);
         goal.transform.position = world.GridToWorld(p, 0.5f);
 
@@ -200,7 +200,10 @@ public static class LevelSpawner
         goalLight.range = 15.0f;
         goalLight.intensity = 8.0f;
 
-        goal.AddComponent<Goal>().gridPos = p;
+        // 🚨 ATUALIZADO: Agora usa o script unificado GameObjective (tipo ExitPortal)
+        GameObjective obj = goal.AddComponent<GameObjective>();
+        obj.gridPos = p;
+        obj.type = ObjectiveType.ExitPortal;
     }
 
     public static void SpawnCollectibles(GridWorld world, System.Random rng, int count)
@@ -210,11 +213,11 @@ public static class LevelSpawner
             // Passou de Esfera para Cubo para mapear a textura perfeitamente
             GameObject coin = GameObject.CreatePrimitive(PrimitiveType.Cube);
             coin.name = "Collectible";
-            coin.tag = "Collectible";
+            coin.tag = "Collectible"; // Mantemos a tag caso algum script precise de limpar a cena
             coin.transform.position = world.GridToWorld(p, 0.3f);
             coin.transform.localScale = Vector3.one * 0.5f;
 
-            // 🚨 NOVO: APLICA A TEXTURA DA MOEDA
+            // APLICA A TEXTURA DA MOEDA
             coin.GetComponent<Renderer>().material = CreateTexturedMaterial("CollectibleTexture", Color.yellow);
 
             Light coinLight = coin.AddComponent<Light>();
@@ -223,7 +226,11 @@ public static class LevelSpawner
             coinLight.range = 8.0f;
             coinLight.intensity = 5.0f;
 
-            coin.AddComponent<Collectible>().gridPos = p;
+            // 🚨 ATUALIZADO: Agora usa o script unificado GameObjective (tipo Coin)
+            GameObjective obj = coin.AddComponent<GameObjective>();
+            obj.gridPos = p;
+            obj.type = ObjectiveType.Coin;
+
             coin.AddComponent<ItemAnimate>(); // Adiciona animação de rotação!
         }
     }
@@ -240,7 +247,7 @@ public static class LevelSpawner
 
             Color col = (selectedType == PowerUpType.Time) ? Color.blue : Color.magenta;
 
-            // 🚨 NOVO: APLICA A TEXTURA DO POWERUP
+            // APLICA A TEXTURA DO POWERUP
             item.GetComponent<Renderer>().material = CreateTexturedMaterial("PowerUpTexture", col);
 
             item.transform.position = world.GridToWorld(p, 0.5f);
@@ -263,7 +270,7 @@ public static class LevelSpawner
             trapObj.name = "Trap";
             trapObj.tag = "Collectible";
 
-            // 🚨 NOVO: APLICA A TEXTURA DA ARMADILHA
+            // APLICA A TEXTURA DA ARMADILHA
             trapObj.GetComponent<Renderer>().material = CreateTexturedMaterial("TrapTexture", new Color(0.8f, 0.2f, 0.2f));
             trapObj.transform.position = world.GridToWorld(p, 0.05f);
             trapObj.transform.localScale = new Vector3(0.8f, 0.1f, 0.8f);

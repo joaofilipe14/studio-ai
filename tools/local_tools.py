@@ -124,7 +124,8 @@ def env_info() -> ToolResult:
 
 def run_game_simulation(exe_path: str, metrics_path: str, timeout: int = 120) -> ToolResult:
     """
-    Executa o jogo Unity em modo Headless, escuta os logs em tempo real e lê o metrics.json.
+    Executa o jogo Unity em modo Headless, escuta os logs em tempo real,
+    grava-os num ficheiro e lê o metrics.json.
     """
     try:
         import subprocess, os, json
@@ -144,27 +145,39 @@ def run_game_simulation(exe_path: str, metrics_path: str, timeout: int = 120) ->
 
         captured_output = []
 
-        # Usar Popen com PIPE para ler o stdout linha a linha em tempo real!
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1) as process:
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, encoding="utf-8", errors="replace") as process:
             for line in process.stdout:
                 clean_line = line.strip()
                 if clean_line:
-                    # Colorir os logs para ser mais fácil ler
+                    # Colorir os logs no Terminal para ser mais fácil ler
                     if "Exception" in clean_line or "Error" in clean_line or "Crash" in clean_line:
                         print(f"[bold red]  [UNITY][/bold red] {clean_line}")
                     elif "Warning" in clean_line:
                         print(f"[yellow]  [UNITY][/yellow] {clean_line}")
                     elif "BOT" in clean_line or "A iniciar Nível" in clean_line:
                         print(f"[bold green]  [BOT][/bold green] {clean_line}")
+                    elif "[ROUND STATS]" in clean_line:
+                        msg = clean_line.split("[ROUND STATS]")[-1].strip()
+                        print(f"[bold cyan]  📊 {msg}[/bold cyan]")
                     else:
                         print(f"[dim]  [UNITY] {clean_line}[/dim]")
 
+                    # Guardar a linha original na nossa lista
                     captured_output.append(clean_line)
 
-            # Aguarda que o processo termine de forma limpa
             process.wait(timeout=timeout)
 
         stdout_str = "\n".join(captured_output)
+
+        # 🚨 NOVO: GUARDAR O LOG COMPLETO NUM FICHEIRO FÍSICO!
+        log_dir = "logs"
+        os.makedirs(log_dir, exist_ok=True)
+        log_file_path = os.path.join(log_dir, "latest_simulation.log")
+
+        with open(log_file_path, "w", encoding="utf-8") as f_log:
+            f_log.write("=== LOG DA ÚLTIMA SIMULAÇÃO DO BOT ===\n\n")
+            f_log.write(stdout_str)
+            f_log.write("\n\n=== FIM DA SIMULAÇÃO ===")
 
         if not os.path.exists(metrics_path):
             return ToolResult(False, "Simulação terminou mas o metrics.json não foi gerado. O jogo crashou?", {"stdout": stdout_str})
@@ -175,7 +188,6 @@ def run_game_simulation(exe_path: str, metrics_path: str, timeout: int = 120) ->
         return ToolResult(True, "Simulation ok", {"metrics": metrics, "stdout": stdout_str})
 
     except subprocess.TimeoutExpired:
-        # Se o jogo encravar e demorar mais que o tempo limite, matamos o processo!
         process.kill()
         return ToolResult(False, "A Simulação demorou demasiado tempo e foi cancelada (Timeout).")
     except Exception as e:

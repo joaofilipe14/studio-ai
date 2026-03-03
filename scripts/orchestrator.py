@@ -116,109 +116,102 @@ def main():
 
     metrics_data = sim_res["data"]["metrics"]
     campaign_completed = metrics_data.get("campaign_completed", False)
+    is_human_run = False
+    level_reports = metrics_data.get("level_reports", [])
 
-    # Se não completou, o nível jogado é onde ele encravou. Se completou, é o 10.
-    played_level_id = metrics_data.get("bottleneck_level", 1) if not campaign_completed else 10
-
-    # Vamos procurar os dados específicos desse nível na lista de relatórios
-    win_rate = 0.0
-    played_mode = "PointToPoint"
-
-    for rep in metrics_data.get("level_reports", []):
-        if rep.get("level_id") == played_level_id:
-            win_rate = rep.get("win_rate", 0.0)
-            played_mode = rep.get("mode", "PointToPoint")
-            break
-
-    print(f"[cyan]Simulation completed. Gargalo detetado no Nível {played_level_id} ({played_mode}). Win Rate: {win_rate}[/cyan]")
+    print(f"[cyan]Simulação concluída. Foram jogados {len(level_reports)} níveis. A iniciar análise profunda...[/cyan]")
 
     # 4. LER A CAMPANHA INTEIRA (O Array JSON)
     if os.path.exists(campaign_path):
         with open(campaign_path, "r", encoding="utf-8") as f:
             campaign = json.load(f)
         if isinstance(campaign, dict):
-            print("[yellow]Aviso: O ficheiro não era um Array. A convertê-lo para formato de Campanha...[/yellow]")
             campaign = [campaign]
-
     else:
         print(f"[red]ERRO: O ficheiro {campaign_path} não foi encontrado na raiz![/red]")
         return
 
-    # 5. ENCONTRAR O NÍVEL ESPECÍFICO NA LISTA
-    current_level = None
-    level_index = -1
-    for i, level in enumerate(campaign):
-        if level.get("level_id") == played_level_id:
-            current_level = level
-            level_index = i
-            break
+    # =========================================================
+    # 5. PROCESSAR TODOS OS NÍVEIS JOGADOS NESTA RUN!
+    # =========================================================
+    for rep in level_reports:
+        played_level_id = rep.get("level_id")
+        win_rate = rep.get("win_rate", 0.0)
+        played_mode = rep.get("mode", "PointToPoint")
 
-    if current_level is None:
-        print(f"[red]ERRO: O Nível {played_level_id} reportado pelo Unity não existe na campanha![/red]")
-        return
+        print(f"\n[bold blue]=======================================[/bold blue]")
+        print(f"[bold blue]🔍 A AVALIAR NÍVEL {played_level_id} (Modo: {played_mode} | Win Rate: {win_rate})[/bold blue]")
 
+        current_level = None
+        level_index = -1
+        for i, level in enumerate(campaign):
+            if level.get("level_id") == played_level_id:
+                current_level = level
+                level_index = i
+                break
+
+        if current_level is None:
+            print(f"[red]Aviso: Nível {played_level_id} não encontrado na campanha. A ignorar...[/red]")
+            continue
+
+        # 6. VERIFICAÇÃO DE EQUILÍBRIO (Sweet Spot)
+        if 0.6 <= win_rate <= 0.8:
+            # O nível está bom! Não chamamos o Ollama para o estragar.
+            # Apenas gravamos na BD que ele está porreiro e mudamos a Semente para variar o labirinto.
+            log_evolution_to_db(db_path, metrics_data, current_level, "Nível perfeitamente equilibrado (Sweet Spot). Mantido sem mutações.", is_human_run)
+
+            current_level["seed"] = random.randint(10000, 99999)
+            campaign[level_index] = current_level
+
+            print(f"[bold yellow]⚡ Nível {played_level_id} equilibrado! Mantido sem mutações de dificuldade.[/bold yellow]")
+
+        # 7. EVOLUÇÃO (Nível desequilibrado: Muito Fácil ou Muito Difícil)
+        else:
+            print(f"[magenta]A pedir ao AI Director para EVOLUIR o Nível {played_level_id}...[/magenta]")
+
+            evolved_data = evolve_bot_genome(config, metrics_data, current_level)
+
+            if evolved_data and "new_genome" in evolved_data:
+                new_level = evolved_data["new_genome"]
+
+                # 🛡️ BLINDAGEM: Garante que a IA não altera dados essenciais
+                new_level["level_id"] = played_level_id
+                new_level["mode"] = current_level.get("mode", "PointToPoint")
+                new_level["theme"] = current_level.get("theme", "Cyberpunk Neon")
+                new_level["seed"] = random.randint(10000, 99999)
+
+                campaign[level_index] = new_level
+                report_text = evolved_data.get('report', 'Sem relatório.')
+
+                log_evolution_to_db(db_path, metrics_data, new_level, report_text, is_human_run)
+
+                print(f"[bold green]✅ Nível {played_level_id} Evoluído com sucesso![/bold green]")
+            else:
+                print(f"[red]Erro da IA ao gerar genoma para o Nível {played_level_id}.[/red]")
 
     # =========================================================
-    # 6. VERIFICAÇÃO RIGOROSA DO HALL OF FAME
+    # 8. GRAVAR A CAMPANHA COMPLETA COM AS MUTAÇÕES DESTA RUN
     # =========================================================
-    if 0.6 <= win_rate <= 0.8:
+    with open(campaign_path, "w", encoding="utf-8") as f:
+        json.dump(campaign, f, indent=2)
+    print(f"\n[bold cyan]💾 Campanha atualizada e guardada! Pronta para a próxima simulação.[/bold cyan]")
+
+    # =========================================================
+    # 9. O VERDADEIRO HALL OF FAME (CAMPANHA COMPLETA VENCEDORA)
+    # =========================================================
+    if campaign_completed:
         hall_of_fame_dir = os.path.join("hall_of_fame")
         os.makedirs(hall_of_fame_dir, exist_ok=True)
 
-        seed = current_level.get("seed")
-        if not seed or seed == "unknown" or seed == 0:
-            seed = random.randint(10000, 99999)
-            current_level["seed"] = seed
-            campaign[level_index] = current_level
-
-        hof_filename = os.path.join(hall_of_fame_dir, f"level_{played_level_id}_mode_{played_mode}_seed_{seed}.json")
-
-        # Guarda o nível isolado como Masterpiece
+        # Guarda a Campanha inteira (o array de 10 níveis)
+        hof_filename = os.path.join(hall_of_fame_dir, f"campaign_masterpiece_{now_id()}.json")
         with open(hof_filename, "w", encoding="utf-8") as hof_file:
-            json.dump(current_level, hof_file, indent=2)
+            json.dump(campaign, hof_file, indent=2)
 
-        # Grava a campanha atualizada com a nova seed
-        with open(campaign_path, "w", encoding="utf-8") as f:
-            json.dump(campaign, f, indent=2)
-
-        print(f"\n[bold yellow]🏆 HALL OF FAME MASTERPIECE! O nível {played_level_id} ({played_mode}) está perfeitamente equilibrado ({win_rate})! Guardado em {hof_filename}[/bold yellow]")
-
-
-    # =========================================================
-    # 7. EVOLUÇÃO (Evoluir apenas ESTE nível na lista)
-    # =========================================================
-    else:
-        print(f"\n[magenta]Asking AI Director to EVOLVE Level {played_level_id} ('{played_mode}')...[/magenta]")
-
-        evolved_data = evolve_bot_genome(config, metrics_data, current_level)
-
-        if evolved_data and "new_genome" in evolved_data:
-            new_level = evolved_data["new_genome"]
-
-            # 🛡️ BLINDAGEM: Garante que a IA não altera dados essenciais
-            new_level["level_id"] = played_level_id
-            new_level["mode"] = played_mode
-            new_level["theme"] = current_level.get("theme", "Cyberpunk Neon")
-            new_level["seed"] = random.randint(10000, 99999)
-
-            # 💉 SUBSTITUI O NÍVEL ANTIGO NA LISTA DA CAMPANHA
-            campaign[level_index] = new_level
-
-            # 💾 GRAVA A LISTA INTEIRA DE VOLTA NO level_genome.json
-            with open(campaign_path, "w", encoding="utf-8") as f:
-                json.dump(campaign, f, indent=2)
-
-            report_text = evolved_data.get('report', 'No report text provided.')
-            log_evolution_to_db(db_path, metrics_data, new_level, report_text)
-
-            print(f"\n[bold green]✅ Nível {played_level_id} Evoluído e Gravado na Campanha! A próxima build vai usar as novas regras para este nível.[/bold green]")
-        else:
-            print("[red]AI failed to generate a valid JSON genome.[/red]")
+        print(f"\n[bold yellow]🏆 THE TRUE HALL OF FAME! O Bot conseguiu vencer o Nível 10![/bold yellow]")
+        print(f"[bold yellow]👑 Campanha de Ouro guardada em: {hof_filename}[/bold yellow]")
 
     # Gravação de estado final
     state["last_result"] = "ok"
     state["history"].append({"ts": now_id(), "result": "ok"})
     save_state(state_path, state)
-
-if __name__ == "__main__":
-    main()

@@ -19,7 +19,7 @@ def main_runner():
     # 2. Ler parâmetros de execução do YAML (agora só precisamos do número total de runs)
     run_section = config.get('run', {})
     # Vamos fazer 10 simulações seguidas por defeito
-    total_runs = run_section.get('num_runs', 5) * 2
+    total_runs = run_section.get('num_runs', 5)
 
     print("=" * 60)
     print(f" 🏃 RUNNER DE CAMPANHA INICIADO (FASE 4)")

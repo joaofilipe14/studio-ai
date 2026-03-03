@@ -1,6 +1,6 @@
 import base64
-import json
 import os
+import json
 import requests
 from io import BytesIO
 from PIL import Image
@@ -10,14 +10,14 @@ from rich import print
 # Configurações das APIs Locais
 SD_API_URL = "http://127.0.0.1:7860/sdapi/v1/txt2img"
 
-# Determinar caminhos base
+# Determinar caminhos-base
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_SPRITES = os.path.join(BASE_DIR, "templates", "sprites")
 TEMPLATE_TEXTURES = os.path.join(BASE_DIR, "templates", "textures")
+ROSTER_PATH = os.path.join(BASE_DIR, "templates", "json", "roster.json")
 
-# 🚨 RECEITAS ESTritas (Para forçar vista Top-Down e Pixel Art puro)
+# 🚨 RECEITAS ESTáticas (Apenas para o Mundo e Inimigos)
 ASSET_RECIPES = {
-    "Player": {"file": "PlayerSprite.png", "is_sprite": True, "prompt": "pixel art sprite, {theme} main hero character, top-down perspective, full body, isolated on pure white background, flat colors"},
     "Enemy": {"file": "EnemySprite.png", "is_sprite": True, "prompt": "pixel art sprite, {theme} scary enemy monster, top-down perspective, full body, isolated on pure white background, flat colors"},
     "Floor": {"file": "FloorTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} floor tile, strictly top-down view, seamless pattern, flat 2d surface, no perspective"},
     "Wall": {"file": "ObstacleTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} solid metal wall crate, strictly top-down view, flat 2d, no perspective"},
@@ -26,6 +26,39 @@ ASSET_RECIPES = {
     "Trap": {"file": "TrapTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} dangerous floor spikes trap, strictly top-down view, flat 2d, no perspective"},
     "PowerUp": {"file": "PowerUpTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} glowing energy battery potion, strictly top-down view, centered, flat 2d"}
 }
+
+# 🚨 LER PERSONAGENS DINAMICAMENTE DO ROSTER.JSON
+def load_character_recipes():
+    """Lê o roster.json e adiciona os personagens do jogo às receitas de Arte."""
+    if os.path.exists(ROSTER_PATH):
+        try:
+            with open(ROSTER_PATH, "r", encoding="utf-8") as f:
+                roster = json.load(f)
+
+            for char_class in roster.get("classes", []):
+                char_id = char_class.get("id", "Unknown")
+                char_name = char_class.get("name", "Hero")
+                char_desc = char_class.get("description", "main character")
+                sprite_filename = f"{char_class.get('spriteName', char_id + 'Sprite')}.png"
+
+                # Injeta o nome e a descrição do personagem no Prompt para a IA saber o que desenhar!
+                prompt = f"pixel art sprite, {{theme}} {char_name}, {char_desc}, top-down perspective, full body, isolated on pure white background, flat colors"
+
+                # Adiciona a receita à nossa lista global
+                ASSET_RECIPES[f"Class: {char_id}"] = {
+                    "file": sprite_filename,
+                    "is_sprite": True,
+                    "prompt": prompt
+                }
+        except Exception as e:
+            print(f"[red]Erro ao ler o roster.json: {e}[/red]")
+    else:
+        # Fallback de segurança se o ficheiro ainda não existir
+        ASSET_RECIPES["Player"] = {"file": "PlayerSprite.png", "is_sprite": True, "prompt": "pixel art sprite, {theme} main hero character, top-down perspective, full body, isolated on pure white background, flat colors"}
+
+# Carrega as classes assim que o script arranca
+load_character_recipes()
+
 
 def check_apis():
     try:
@@ -85,7 +118,7 @@ def generate_single_asset(theme: str, asset_key: str):
     return out_path
 
 def generate_full_theme(genome: dict):
-    """Gera TODOS os assets do jogo baseados no tema atual."""
+    """Gera TODOS os assets do jogo baseado no tema atual."""
     check_apis()
     theme = genome.get("theme", "Cyberpunk Neon")
     print(f"\n[bold magenta]🚀 A iniciar criação do Pacote de Arte: {theme}[/bold magenta]")

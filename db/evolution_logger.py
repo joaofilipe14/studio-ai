@@ -40,7 +40,7 @@ def init_db(db_path: str):
     conn.commit()
     conn.close()
 
-def log_evolution_to_db(db_path: str, metrics: dict, genome: dict, report: str):
+def log_evolution_to_db(db_path: str, metrics: dict, genome: dict, report: str, is_human:bool):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
@@ -58,7 +58,6 @@ def log_evolution_to_db(db_path: str, metrics: dict, genome: dict, report: str):
     # 3. Extrair as métricas a partir do relatório isolado
     game_mode = specific_report.get("mode", genome.get("mode", "PointToPoint"))
     win_rate = specific_report.get("win_rate", 0.0)
-    is_human = metrics.get("is_human", False) # is_human continua na raiz do metrics
 
     # 4. Dados do Genoma (mantêm-se iguais)
     agent_speed = genome.get("agent", {}).get("speed", 0.0) # Nota: Se não estiver no json, dá 0.0

@@ -1,15 +1,12 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-public class SimpleAgent : MonoBehaviour
-{
+public class SimpleAgent : MonoBehaviour {
     public GridWorld world;
     public Vector2Int gridPos;
     public float moveSpeed = 5f;
-
     // Posição alvo para o movimento suave
     private Vector3 targetWorldPos;
-
     // Memória do Bot (IA)
     private List<Vector2Int> currentPath;
     private int pathIndex = 0;
@@ -20,8 +17,7 @@ public class SimpleAgent : MonoBehaviour
     }
 
     void Update() {
-        if (GameManager.Instance == null || GameManager.Instance.finished) return;
-
+        if (GameManager.Instance == null || GameManager.Instance.finished || Time.timeScale == 0) return;
         // Se o controlo for do jogador, chama o movimento manual. Senão, usa a IA.
         if (GameManager.Instance.userControl) {
             HandleManualMovement();
@@ -34,9 +30,7 @@ public class SimpleAgent : MonoBehaviour
     // 1. CONTROLO HUMANO (Com a tua lógica de Câmara!)
     // ==========================================
     void HandleManualMovement() {
-        // O jogador só pode decidir a próxima direção quando o agente chegar ao centro do bloco atual
         if (Vector3.Distance(transform.position, targetWorldPos) < 0.05f) {
-
             // 1. Ler o input puro (eixos do teclado)
             float h = 0; float v = 0;
             if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) v = 1;
@@ -130,16 +124,18 @@ public class SimpleAgent : MonoBehaviour
 
     void RecalculatePath() {
         Vector2Int targetPos = gridPos;
-
-        // Descobrir onde está o objetivo
+        GameObjective[] objectives = Object.FindObjectsByType<GameObjective>(FindObjectsSortMode.None);
         if (GameManager.Instance.currentMode == "PointToPoint") {
-            Goal goal = Object.FindFirstObjectByType<Goal>();
-            if (goal != null) targetPos = goal.gridPos;
+            foreach (var obj in objectives) {
+                if (obj.type == ObjectiveType.ExitPortal) {
+                    targetPos = obj.gridPos;
+                    break;
+                }
+            }
         } else {
-            Collectible[] coins = Object.FindObjectsByType<Collectible>(FindObjectsSortMode.None);
             float minDist = float.MaxValue;
-            foreach (var c in coins) {
-                if (c.gameObject.CompareTag("Collectible")) {
+            foreach (var c in objectives) {
+                if (c.type == ObjectiveType.Coin) {
                     float d = Vector2Int.Distance(gridPos, c.gridPos);
                     if (d < minDist) {
                         minDist = d;
@@ -153,7 +149,6 @@ public class SimpleAgent : MonoBehaviour
         currentPath = FindPathBFS(gridPos, targetPos);
         pathIndex = 0;
 
-        // O index 0 do BFS é a nossa casa atual, por isso queremos saltar para a casa 1
         if (currentPath != null && currentPath.Count > 1) {
             pathIndex = 1;
         }

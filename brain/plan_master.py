@@ -2,8 +2,6 @@ from __future__ import annotations
 import json
 import os
 import yaml
-from brain.planning import request_plan, extract_first_json_object
-from brain.ollama_client import chat
 
 def create_master_plan(max_retries: int = 5) -> bool:
     plan_path = os.path.join("configs", "master_plan.json")
