@@ -262,8 +262,27 @@ public static class LevelSpawner
         }
     }
 
-    public static void SpawnTraps(GridWorld world, System.Random rng, int count, float penalty)
-    {
+    public static void SpawnPhysicalExplosion(Vector3 position, Color color, int amount) {
+        for (int i = 0; i < amount; i++) {
+            GameObject p = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            p.transform.position = position + Random.insideUnitSphere * 0.5f;
+            p.transform.localScale = Vector3.one * 0.2f;
+
+            // Visual
+            p.GetComponent<Renderer>().material = CreateSimpleMaterial(color);
+
+            // Física 🚨
+            Rigidbody rb = p.AddComponent<Rigidbody>();
+            // Dá um impulso inicial aleatório para cima e para os lados
+            Vector3 force = new Vector3(Random.Range(-2f, 2f), Random.Range(3f, 6f), Random.Range(-2f, 2f));
+            rb.AddForce(force, ForceMode.Impulse);
+
+            // Lógica de limpeza
+            p.AddComponent<VoxelParticle>();
+        }
+    }
+
+    public static void SpawnTraps(GridWorld world, System.Random rng, int count, float penalty) {
         for (int i = 0; i < count; i++) {
             Vector2Int p = GetUniqueSpawnPosition(world, rng);
             GameObject trapObj = GameObject.CreatePrimitive(PrimitiveType.Cube);

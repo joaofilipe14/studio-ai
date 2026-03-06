@@ -214,10 +214,12 @@ def call_tool(
                         print(f"[ERRO CRÍTICO] O template '{json_file}' não foi encontrado!")
 
                 # 2. Injeção de Música
-                music_src = os.path.join("templates", "music", "synthwave_loop.wav")
-                music_dst = os.path.join(music_dir, "synthwave_loop.wav")
-                if os.path.exists(music_src):
-                    shutil.copy2(music_src, music_dst)
+                audio_files = ["bg_theme.wav", "sfx_coin.wav", "sfx_win.wav", "sfx_lose.wav"]
+                for audio in audio_files:
+                    src = os.path.join("templates", "music", audio)
+                    dst = os.path.join(music_dir, audio)
+                    if os.path.exists(src):
+                        shutil.copy2(src, dst)
 
                 # 🚨 NOVO: INJEÇÃO COMPLETA DE SPRITES (Com fundo transparente)
                 sprites_to_copy = ["PlayerSprite.png", "EnemySprite.png"]
@@ -264,6 +266,7 @@ def call_tool(
                     (os.path.join(assets_dir, "LevelSpawner.cs"), "LevelSpawner.cs"),
                     (os.path.join(assets_dir, "VoxelRenderer.cs"), "VoxelRenderer.cs"),
                     (os.path.join(assets_dir, "UIManager.cs"), "UIManager.cs"),
+                    (os.path.join(assets_dir, "VoxelParticle.cs"), "VoxelParticle.cs"),
                 ]
 
                 for dst, tmpl in preflight_files:
@@ -316,7 +319,8 @@ def call_tool(
             "/assets/cameracontroller.cs": "CameraController.cs",
             "/assets/voxelrenderer.cs": "VoxelRenderer.cs",
             "/assets/levelspawner.cs": "LevelSpawner.cs",
-            "/assets/uimanager.cs": "UIManager.cs"
+            "/assets/uimanager.cs": "UIManager.cs",
+            "/assets/voxelparticle.cs.cs": "VoxelParticle.cs.cs"
         }
 
         for path_suffix, tmpl_name in templates_map.items():

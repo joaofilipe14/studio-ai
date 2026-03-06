@@ -21,6 +21,11 @@ public class CameraController : MonoBehaviour
     public float aiSmoothSpeed = 5f;
     private Vector3 currentVelocity = Vector3.zero;
 
+    [Header("Juice - Shake")]
+    private float shakeDuration = 0f;
+    private float shakeMagnitude = 0.1f;
+    private Vector3 shakeOffset = Vector3.zero;
+
     void Start() {
         if (isHumanMode) {
             Cursor.lockState = CursorLockMode.Locked;
@@ -32,12 +37,9 @@ public class CameraController : MonoBehaviour
         }
     }
 
-    void LateUpdate()
-    {
+    void LateUpdate() {
         if (target == null) return;
-
-        if (isHumanMode)
-        {
+        if (isHumanMode) {
             // 1. Ler Input
             yaw += Input.GetAxis("Mouse X") * mouseSensitivity;
             pitch -= Input.GetAxis("Mouse Y") * mouseSensitivity;
@@ -54,9 +56,14 @@ public class CameraController : MonoBehaviour
 
             transform.position = targetHead + rotation * direction;
             transform.LookAt(targetHead);
-        }
-        else
-        {
+            if (shakeDuration > 0) {
+                shakeOffset = Random.insideUnitSphere * shakeMagnitude;
+                shakeDuration -= Time.deltaTime;
+            } else {
+                shakeOffset = Vector3.zero;
+            }
+            transform.position += shakeOffset;
+        } else {
             // Câmara Isométrica Suave para o Bot (Amortecimento Gradual)
             Vector3 desiredPosition = target.position + aiOffset;
             transform.position = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, aiSmoothTime);
@@ -65,5 +72,10 @@ public class CameraController : MonoBehaviour
             Quaternion targetRotation = Quaternion.LookRotation(target.position - transform.position);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 5f);
         }
+    }
+
+    public void TriggerShake(float duration, float magnitude) {
+        shakeDuration = duration;
+        shakeMagnitude = magnitude;
     }
 }

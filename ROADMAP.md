@@ -22,20 +22,17 @@ O objetivo final do **Studio-AI** é criar um "Desenvolvedor Virtual" capaz de g
 
 ---
 
-## Fase 4 — O "Game Loop" Roguelite (Metajogo) 👤 (Em curso)
-*Foco em Polimento, UX e Retenção de Jogadores.*
-
-- [x] **Refactorização Genética:** Divisão do genome em listas de níveis, roster e saves.
-- [x] **Sistema de Personagens:** Escolha de classes via `roster.json` e compra de vidas.
-- [ ] **Polimento da Câmara:** Suavizar a transição e rotação da câmara para evitar mudanças bruscas que causam tonturas.
-- [ ] **Glossário de Itens:** Adicionar um ecrã ou menu de ajuda que explique o que faz cada item (Moedas, Power-ups, Armadilhas).
-- [ ] **Sistema de Checkpoint/Save-Time:** Implementar um indicador de quando o jogo foi guardado ou permitir guardar progresso a meio da run.
-- [ ] **Botão de Reiniciar:** Adicionar um botão "Recomeçar Campanha" no menu ou após o Game Over para limpar o progresso atual.
-- [ ] **UI Adaptativa:** Melhorar os menus para resoluções variadas e preparar para interações táteis.
+## Fase 4 — O "Game Loop" Roguelite (Metajogo) 👤
+- [x] **Polimento da Câmara:** Suavização com SmoothDamp concluída.
+- [x] **Glossário de Itens:** Manual de sobrevivência básico implementado.
+- [x] **Botão de Reiniciar:** Sistema de reset de save operacional.
+- [ ] **Game Feel (Juice):** Implementar Screen Shake e Partículas de Voxels.
+- [ ] **Feedback Sonoro:** Adicionar biblioteca de SFX (passos, moedas, dano).
 
 ## Fase 5 — Lançamento Server-Side e Mobile Cloud ☁️📱
-*Preparar o sistema para viver na Web e em dispositivos móveis.*
-
+- [ ] **Otimização Crítica:** Implementar Mesh Combiner no VoxelRenderer para performance mobile.
+- [ ] **Controlos Táteis:** Criar o Joystick Virtual e suporte a gestos (swipes).
+- [ ] **Backend Cloud:** Migrar o game_director.py para FastAPI.
 - [ ] **Backend Cloud (FastAPI):** Migrar a evolução da IA para um servidor remoto (essencial para Mobile).
 - [ ] **Versão Mobile (Android/iOS):**
     - [ ] Implementar Joystick Virtual para movimento tátil.

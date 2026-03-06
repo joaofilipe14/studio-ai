@@ -1,234 +1,182 @@
-import sys
-import os
+import datetime
 
 import streamlit as st
-import pandas as pd
-import plotly.express as px
+import os
 import json
 import requests
+import pandas as pd
 
-# Importações do sistema
+from brain.marketing_agent import save_marketing_plan, generate_weekly_marketing_plan, load_marketing_plan, MARKETING_FILE
+# Importações das tuas lógicas de backend
 from db.evolution_logger import get_evolution_history
-from brain.art_director import (
-    generate_full_theme,
-    TEMPLATE_SPRITES,
-    TEMPLATE_TEXTURES, generate_single_asset, ASSET_RECIPES
-)
+from brain.art_director import generate_full_theme, ASSET_RECIPES, generate_single_asset, TEMPLATE_SPRITES, \
+    TEMPLATE_TEXTURES
+from brain.generate_audio import AUDIO_RECIPES, generate_audio_asset, MUSIC_DIR
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# Configurações de layout
-st.set_page_config(page_title="Studio-AI: Director Control", layout="wide")
+# Configuração de Página (Deve ser a primeira linha de comandos Streamlit)
+st.set_page_config(page_title="Studio-AI: Master Control", layout="wide", initial_sidebar_state="expanded")
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "logs", "evolution.db")
 
-st.title("📊 Studio-AI: Director Control")
+# ==========================================
+# 🗺️ BARRA DE NAVEGAÇÃO LATERAL (NAVBAR)
+# ==========================================
+with st.sidebar:
+    st.title("🎮 Studio-AI")
+    st.markdown("---")
+    # O "Roteamento" aqui é feito por este seletor
+    page = st.radio(
+        "Navegação Principal",
+        ["📈 Performance", "🎨 Estúdio de Arte", "🎵 Sonoplastia", "🚀 Marketing Hub"],
+        index=0
+    )
+
+    st.markdown("---")
+    st.subheader("⚙️ Status do Sistema")
+    # Health Checks rápidos
+    ollama = "🟢" if requests.get("http://localhost:11434/", timeout=0.1).status_code == 200 else "🔴"
+    st.write(f"Diretor IA: {ollama}")
 
 # ==========================================
-# 🩺 HEALTH CHECK VISUAL NA SIDEBAR
-# ==========================================
-st.sidebar.header("⚙️ Motores de IA")
-
-def check_service(url):
-    try:
-        requests.get(url, timeout=0.5)
-        return True
-    except:
-        return False
-
-ollama_online = check_service("http://localhost:11434/")
-sd_online = check_service("http://127.0.0.1:7860/")
-
-st.sidebar.markdown(f"**🧠 Diretor Níveis (Ollama):** {'🟢 Online' if ollama_online else '🔴 Offline'}")
-st.sidebar.markdown(f"**🎨 Diretor Arte (A1111):** {'🟢 Online' if sd_online else '🔴 Offline'}")
-
-if not ollama_online or not sd_online:
-    st.sidebar.warning("⚠️ Alerta: Tens motores desligados. Liga-os antes de correres simulações ou gerardes arte!")
-
-st.sidebar.divider()
+# 📑 LÓGICA DE RENDERIZAÇÃO POR "ROTA"
 # ==========================================
 
-# Carregar dados da Base de Dados
-df = get_evolution_history(DB_PATH)
-
-# CRIAR AS ABAS PRIMEIRO, INDEPENDENTEMENTE DA BASE DE DADOS!
-tab_metrics, tab_art = st.tabs(["📈 Análise de Performance", "🎨 Estúdio de Assets"])
-
-# ==========================================
-# TAB 1: ANÁLISE DE MÉTRICAS E JSON
-# ==========================================
-with tab_metrics:
-    st.header("Análise de Evolução e Genomas")
-
+if page == "📈 Performance":
+    st.title("📈 Análise de Performance e Genomas")
+    df = get_evolution_history(DB_PATH)
     if df.empty:
-        st.warning("⚠️ Base de dados vazia. Executa uma simulação primeiro para veres os gráficos!")
+        st.warning("Sem dados. Executa uma simulação!")
     else:
-        if 'is_human' not in df.columns:
-            df['is_human'] = 0
-        if 'level_id' not in df.columns:
-            df['level_id'] = 1
+        st.write("Gráficos de Win Rate e Tempo de Jogo aqui.") # [Insere aqui a tua lógica de gráficos]
 
-        def extract_avg_time(row):
-            try:
-                metrics = json.loads(row['metrics_json'])
-                level_reports = metrics.get("level_reports", [])
-                for rep in level_reports:
-                    if rep.get("level_id") == row['level_id']:
-                        return rep.get("avg_time_to_goal", 0.0)
-            except:
-                return 0.0
-            return 0.0
+elif page == "🎨 Estúdio de Arte":
+    st.title("🎨 Galeria de Texturas e Sprites")
 
-        df['avg_time'] = df.apply(extract_avg_time, axis=1)
-
-        st.sidebar.header("🔍 Filtros de Análise")
-        modos = df['game_mode'].unique().tolist()
-        modo_f = st.sidebar.multiselect("Filtrar Modos:", modos, default=modos)
-
-        niveis = sorted(df['level_id'].unique().tolist())
-        nivel_f = st.sidebar.multiselect("Filtrar Níveis:", niveis, default=niveis)
-
-        st.sidebar.subheader("Tipo de Jogador")
-        mostrar_humano = st.sidebar.checkbox("Incluir jogadas do Humano", value=True)
-        mostrar_bot = st.sidebar.checkbox("Incluir jogadas do Bot (QA)", value=True)
-
-        mask = df['game_mode'].isin(modo_f) & df['level_id'].isin(nivel_f)
-        player_mask = pd.Series(False, index=df.index)
-        if mostrar_humano: player_mask |= (df['is_human'] == 1)
-        if mostrar_bot: player_mask |= (df['is_human'] == 0)
-
-        df_filtered = df[mask & player_mask]
-
-        if df_filtered.empty:
-            st.error("Nenhum dado para os filtros selecionados.")
-        else:
-            latest = df_filtered.iloc[0]
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Win Rate Atual", f"{latest['win_rate']:.2f}")
-            m2.metric("Tempo Médio", f"{latest['avg_time']:.1f}s")
-            m3.metric("Obstáculos", latest['obstacles_count'])
-            m4.metric("Modo Atual", latest['game_mode'])
-
-            st.divider()
-
-            df_filtered = df_filtered.copy()
-            df_filtered['Legenda'] = df_filtered.apply(
-                lambda row: f"Lvl {row['level_id']} - {'Humano' if row['is_human'] else 'Bot'}", axis=1
-            )
-
-            col_chart1, col_chart2 = st.columns(2)
-            with col_chart1:
-                fig1 = px.line(df_filtered.sort_values('id'), x='id', y='win_rate', color='Legenda', markers=True, title="Evolução da Taxa de Vitória")
-                fig1.update_layout(yaxis_range=[-0.1, 1.1])
-                # 🚨 ATUALIZADO AQUI
-                st.plotly_chart(fig1, width="stretch")
-
-            with col_chart2:
-                fig2 = px.line(df_filtered.sort_values('id'), x='id', y='avg_time', color='Legenda', markers=True, title="Tempo de Jogo (Segundos)")
-                # 🚨 ATUALIZADO AQUI
-                st.plotly_chart(fig2, width="stretch")
-
-            st.divider()
-
-            st.subheader("🔍 Inspeção Técnica e Comparação")
-            all_ids = df_filtered['id'].tolist()
-            selected_id = st.select_slider("Selecione um ID para inspecionar:", options=all_ids)
-
-            detail = df[df['id'] == selected_id].iloc[0]
-            genome_atual = json.loads(detail['genome_json'])
-            modo_alvo = genome_atual.get("mode", detail['game_mode'])
-            nivel_alvo = genome_atual.get("level_id", detail['level_id'])
-
-            df_anteriores = df[df['id'] < selected_id].sort_values('id', ascending=False)
-            prev_detail = None
-            genome_anterior = None
-
-            for _, row in df_anteriores.iterrows():
-                try:
-                    g = json.loads(row['genome_json'])
-                    if g.get("mode") == modo_alvo and g.get("level_id", 1) == nivel_alvo:
-                        prev_detail = row
-                        genome_anterior = g
-                        break
-                except Exception:
-                    continue
-
-            if prev_detail is not None:
-                col_prev, col_diff, col_next = st.columns([1, 0.6, 1])
-                with col_prev:
-                    st.write(f"⬅️ **Anterior (ID {prev_detail['id']} - Nível {nivel_alvo})**")
-                    st.json(genome_anterior)
-
-                with col_diff:
-                    st.write("🔄 **Mutações**")
-                    for section in ["rules", "agent", "obstacles", "arena"]:
-                        if section in genome_atual and section in genome_anterior:
-                            for k, v in genome_atual[section].items():
-                                if isinstance(v, (int, float)) and k in genome_anterior[section]:
-                                    old_v = genome_anterior[section][k]
-                                    if v != old_v:
-                                        diff = v - old_v
-                                        color = "green" if diff > 0 else "red"
-                                        st.markdown(f"**{k}**:  \n{old_v} ➡️ {v}  \n(:{color}[{diff:+.2f}])")
-
-                with col_next:
-                    st.write(f"➡️ **Selecionado (ID {selected_id} - Nível {nivel_alvo})**")
-                    st.json(genome_atual)
-            else:
-                st.info(f"ℹ️ Esta é a primeira geração registada para o Nível {nivel_alvo}.")
-                st.json(genome_atual)
-
-            st.info(f"**Relatório da IA:** {detail['ai_report']}")
-
-# ==========================================
-# TAB 2: GERAÇÃO DE ASSETS (ART STUDIO)
-# ==========================================
-with tab_art:
-    st.header("🎨 Geração de Pacote Visual por IA")
-    tema_mundo = st.selectbox("Escolha o tema desejado:", ["Cyberpunk Neon", "Medieval Dungeon", "Alien Hive", "Frozen Cave", "Post-Apocalyptic Wasteland", "Retro 8-bit Arcade"])
+    # --- CONTROLOS DE GERAÇÃO ---
+    st.subheader("🛠️ Ferramentas de Criação")
+    tema_mundo = st.selectbox("Tema do Projeto:", ["Cyberpunk Neon", "Medieval Dungeon", "Alien Hive", "Frozen Cave", "Retro 8-bit"])
 
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        st.write("**Gerar o Mundo Inteiro (Demora 2-3 min)**")
-        # 🚨 ATUALIZADO AQUI
-        if st.button(f"🚀 Gerar Pacote Completo", width="stretch"):
-            with st.spinner(f"A Direção de Arte está a criar o pacote '{tema_mundo}'..."):
-                try:
-                    generate_full_theme({"theme": tema_mundo})
-                    st.success(f"✅ Pacote completo gerado com sucesso!")
-                except Exception as e:
-                    st.error(f"⚠️ Operação Abortada: {str(e)}")
+        st.write("**Pacote Completo**")
+        if st.button("🚀 Gerar Tudo (Mundo Inteiro)", use_container_width=True):
+            with st.spinner(f"A criar o pacote '{tema_mundo}'..."):
+                generate_full_theme({"theme": tema_mundo}) #
+                st.success("✅ Mundo gerado!")
 
     with col_btn2:
-        st.write("**Corrigir Apenas 1 Elemento (Rápido)**")
-        asset_to_fix = st.selectbox("Escolhe o objeto a regenerar:", list(ASSET_RECIPES.keys()), label_visibility="collapsed")
-        # 🚨 ATUALIZADO AQUI
-        if st.button(f"🎯 Regenerar Selecionado", width="stretch"):
-            with st.spinner(f"A pintar o {asset_to_fix}..."):
-                try:
-                    generate_single_asset(tema_mundo, asset_to_fix)
-                    st.success(f"✅ {asset_to_fix} gerado com sucesso!")
-                except Exception as e:
-                    st.error(f"⚠️ Operação Abortada: {str(e)}")
+        st.write("**Elemento Único**")
+        asset_to_fix = st.selectbox("Objeto a regenerar:", list(ASSET_RECIPES.keys())) #
+        if st.button("🎯 Corrigir Apenas Este", use_container_width=True):
+            with st.spinner(f"A pintar {asset_to_fix}..."):
+                generate_single_asset(tema_mundo, asset_to_fix) #
+                st.success(f"✅ {asset_to_fix} pronto!")
 
     st.divider()
-    st.subheader("🖼️ Galeria de Assets Atuais")
 
-    def show_img(title, path):
-        if os.path.exists(path):
-            # 🚨 ATUALIZADO AQUI
-            st.image(path, caption=title, width="stretch")
+    # --- GALERIA DINÂMICA ---
+    ver_tipo = st.radio("Visualizar na Galeria:", ["Todos", "Sprites", "Texturas"], horizontal=True)
+
+    # Mapeamento de pastas baseado nas variáveis importadas
+    folders = []
+    if ver_tipo in ["Todos", "Sprites"]: folders.append((TEMPLATE_SPRITES, "👾 Sprites e Personagens"))
+    if ver_tipo in ["Todos", "Texturas"]: folders.append((TEMPLATE_TEXTURES, "🧱 Texturas de Ambiente"))
+
+    for folder_path, label in folders:
+        st.subheader(label)
+        if os.path.exists(folder_path):
+            files = [f for f in os.listdir(folder_path) if f.endswith(('.png', '.jpg', '.jpeg'))]
+            if files:
+                cols = st.columns(4)
+                for idx, file in enumerate(files):
+                    with cols[idx % 4]:
+                        full_path = os.path.join(folder_path, file)
+                        st.image(full_path, caption=file, use_container_width=True)
+            else:
+                st.info(f"Nenhum ficheiro em {label}")
         else:
-            st.info(f"❌ {title} não gerado.")
+            st.error(f"Pasta não encontrada: {folder_path}")
 
-    num_cols = 4
-    cols = st.columns(num_cols)
+# ==========================================
+# 🎵 PÁGINA: ESTÚDIO DE SOM
+# ==========================================
+elif page == "🎵 Sonoplastia":
+    st.title("🎵 Biblioteca de Áudio")
 
-    for index, (key, recipe) in enumerate(ASSET_RECIPES.items()):
-        col = cols[index % num_cols]
+    # --- CONTROLOS DE ÁUDIO ---
+    col_aud1, col_aud2 = st.columns(2)
+    with col_aud1:
+        if st.button("🎶 Gerar Orquestra Completa", use_container_width=True):
+            with st.spinner("A compor..."):
+                for key in AUDIO_RECIPES.keys(): #
+                    generate_audio_asset("Tema Atual", key)
+                st.rerun()
 
-        is_sprite = recipe["is_sprite"]
-        folder = TEMPLATE_SPRITES if is_sprite else TEMPLATE_TEXTURES
-        filepath = os.path.join(folder, recipe["file"])
+    with col_aud2:
+        audio_target = st.selectbox("Som individual:", list(AUDIO_RECIPES.keys()))
+        if st.button(f"🔊 Gerar {audio_target}", use_container_width=True):
+            generate_audio_asset("Tema Atual", audio_target)
+            st.rerun()
 
-        with col:
-            show_img(key, filepath)
+    st.divider()
+
+    # --- PLAYBACK DINÂMICO ---
+    if os.path.exists(MUSIC_DIR): #
+        audio_files = [f for f in os.listdir(MUSIC_DIR) if f.endswith(('.wav', '.mp3'))]
+        if audio_files:
+            aud_cols = st.columns(2)
+            for idx, file in enumerate(audio_files):
+                with aud_cols[idx % 2]:
+                    with st.container(border=True):
+                        st.write(f"📄 **{file}**")
+                        st.audio(os.path.join(MUSIC_DIR, file))
+        else:
+            st.warning("Pasta de música vazia.")
+
+# ==========================================
+# 🚀 NOVA SECÇÃO: MARKETING HUB (CALENDÁRIO)
+# ==========================================
+elif page == "🚀 Marketing Hub":
+    st.title("🚀 Agente de Marketing & Promoção")
+
+    # Carregar do ficheiro se não estiver na sessão
+    if 'marketing_plan_data' not in st.session_state:
+        st.session_state['marketing_plan_data'] = load_marketing_plan()
+
+    if os.path.exists(MARKETING_FILE):
+        mtime = os.path.getmtime(MARKETING_FILE)
+        st.caption(f"📂 Memória carregada (Última edição: {datetime.fromtimestamp(mtime).strftime('%d/%m %H:%M')})")
+    if st.button("🤖 Gerar Novo Plano Semanal"):
+        theme = st.session_state.get('current_theme', "Cyberpunk")
+        plan = generate_weekly_marketing_plan(DB_PATH, theme)
+        st.session_state['marketing_plan_data'] = plan
+        st.success("Novo plano gerado e guardado em logs/marketing_plan.json")
+
+    if st.session_state['marketing_plan_data']:
+        for idx, post in enumerate(st.session_state['marketing_plan_data']):
+            # Cor do expander muda se já foi revisado
+            label = f"✅ {post['dia']}" if post['reviewed'] else f"⏳ {post['dia']}"
+
+            with st.expander(label):
+                col_txt, col_rev = st.columns([3, 1])
+
+                with col_txt:
+                    novo_texto = st.text_area("Legenda:", post['texto'], key=f"txt_{idx}")
+                    if novo_texto != post['texto']:
+                        st.session_state['marketing_plan_data'][idx]['texto'] = novo_texto
+
+                with col_rev:
+                    # Sistema de Review
+                    is_reviewed = st.checkbox("Aprovar Post", value=post['reviewed'], key=f"rev_{idx}")
+                    st.session_state['marketing_plan_data'][idx]['reviewed'] = is_reviewed
+
+                    if st.button("💾 Guardar", key=f"save_{idx}"):
+                        save_marketing_plan(st.session_state['marketing_plan_data'])
+                        st.toast("Alterações guardadas!")
+
+        # Botão final para "Publicar" (apenas o que foi revisado)
+        if st.button("🚀 Publicar Posts Aprovados"):
+            aprovados = [p for p in st.session_state['marketing_plan_data'] if p['reviewed']]
+            st.write(f"A publicar {len(aprovados)} posts aprovados...")
+            # Aqui ligarias a uma API do Twitter/Instagram ou apenas exportarias o pack final

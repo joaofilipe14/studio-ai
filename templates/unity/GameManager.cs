@@ -97,6 +97,9 @@ public class GameManager : MonoBehaviour
     public int botMaxAttempts = 10; // O Bot tem mais margem para testar exaustivamente
     public int currentLevelAttempts = 0;
 
+    [Header("Áudio e SFX")]
+    private AudioSource sfxSource;
+
     void Awake() {
         if (Instance == null) Instance = this;
         if (gameObject.GetComponent<UIManager>() == null) gameObject.AddComponent<UIManager>();
@@ -318,13 +321,25 @@ public class GameManager : MonoBehaviour
     }
 
     void SetupAudio() {
-        GameObject musicObj = new GameObject("BackgroundMusic");
-        AudioSource source = musicObj.AddComponent<AudioSource>();
-        source.clip = Resources.Load<AudioClip>("Music/synthwave_loop");
-        source.loop = true;
-        source.playOnAwake = true;
-        source.volume = 0.5f;
-        source.Play();
+        GameObject musicObj = GameObject.Find("BackgroundMusic") ?? new GameObject("BackgroundMusic");
+        AudioSource musicSource = musicObj.GetComponent<AudioSource>() ?? musicObj.AddComponent<AudioSource>();
+        musicSource.clip = Resources.Load<AudioClip>("Music/bg_theme"); // Nome atualizado para o novo sistema
+        musicSource.loop = true;
+        musicSource.volume = 0.4f;
+        if (!musicSource.isPlaying) musicSource.Play();
+
+        // 🚨 NOVO: Canal de Efeitos Sonoros (SFX)
+        if (sfxSource == null) {
+            GameObject sfxObj = new GameObject("SFXPlayer");
+            sfxSource = sfxObj.AddComponent<AudioSource>();
+        }
+    }
+
+    public void PlaySFX(string clipName) {
+        AudioClip clip = Resources.Load<AudioClip>("Music/" + clipName);
+        if (clip != null && sfxSource != null) {
+            sfxSource.PlayOneShot(clip);
+        }
     }
 
     void Update() {
@@ -360,6 +375,7 @@ public class GameManager : MonoBehaviour
 
     public void OnGoalReached() {
         if (finished) return;
+        //PlaySFX("sfx_win");
         finished = true;
         isPlaying = false;
         winsCount++;
@@ -408,6 +424,7 @@ public class GameManager : MonoBehaviour
     // 💀 QUANDO MORRES, REINICIAS O MESMO NÍVEL (O index não sobe)
     public void OnAgentCaught() {
         if (finished) return;
+        PlaySFX("sfx_lose");
         finished = true;
         isPlaying = false;
         stuckCount++;
@@ -421,28 +438,30 @@ public class GameManager : MonoBehaviour
                 Invoke("StartNewRun", 0.05f); // Bot tenta outra vez rápido
             }
         } else {
-            // LÓGICA DO HUMANO (Arcade)
-            if (currentPlayer != null) {
-                // 🚨 FIX: Ficas com as moedas que conseguiste apanhar antes de morrer!
-                currentPlayer.wallet.totalCoins += collectedInRound;
-                currentPlayer.stats.currentLives--; // Perde uma vida!
+            if (Camera.main != null) {
+                var cam = Camera.main.GetComponent<CameraController>();
+                if (cam != null) cam.TriggerShake(0.5f, 0.6f);
+            }
+            // 🚨 FIX: Ficas com as moedas que conseguiste apanhar antes de morrer!
+            currentPlayer.wallet.totalCoins += collectedInRound;
+            currentPlayer.stats.currentLives--; // Perde uma vida!
 
-                if (currentPlayer.stats.currentLives <= 0) {
-                    currentPlayer.stats.currentLives = currentPlayer.stats.maxLives;
-                    currentPlayer.currentCampaignLevel = 1;
-                    currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+            if (currentPlayer.stats.currentLives <= 0) {
+                currentPlayer.stats.currentLives = currentPlayer.stats.maxLives;
+                currentPlayer.currentCampaignLevel = 1;
+                currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
 
-                    if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"GAME OVER no Nível {currentLevel.level_id}!\nFicaste sem vidas.");
-                } else {
-                    currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
-                    if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"Morreste no Nível {currentLevel.level_id}!\nVidas restantes: {currentPlayer.stats.currentLives}");
-                }
+                if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"GAME OVER no Nível {currentLevel.level_id}!\nFicaste sem vidas.");
+            } else {
+                currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+                if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"Morreste no Nível {currentLevel.level_id}!\nVidas restantes: {currentPlayer.stats.currentLives}");
             }
         }
     }
 
     void Lose(string reason) {
         if (finished) return;
+        PlaySFX("sfx_lose");
         Debug.Log("Perdeu!");
         finished = true;
         isPlaying = false;
@@ -468,6 +487,9 @@ public class GameManager : MonoBehaviour
 
     public void OnCollect(Vector2Int p) {
         if (finished) return;
+        Vector3 worldPos = world.GridToWorld(p, 0.5f);
+        LevelSpawner.SpawnPhysicalExplosion(worldPos, Color.yellow, 6);
+        PlaySFX("sfx_coin");
         collectedInRound++;
         totalCollectedGame++;
         if (collectedInRound >= collectibles) OnGoalReached();
@@ -481,6 +503,10 @@ public class GameManager : MonoBehaviour
         currentTimer -= (amount * resistance);
         trapsHitCount++;
         if (currentTimer < 0) currentTimer = 0;
+        if (Camera.main != null) {
+            var cam = Camera.main.GetComponent<CameraController>();
+            if (cam != null) cam.TriggerShake(0.2f, 0.3f);
+        }
     }
 
     private System.Collections.IEnumerator SpeedBoostRoutine() {
