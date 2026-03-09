@@ -1,46 +1,46 @@
-# ROADMAP.md — Autonomous Game Evolution (Studio-AI)
+# 🗺️ ROADMAP.md — Studio-AI: O Ecossistema Autónomo
 
-## Visão Geral
-O objetivo final do **Studio-AI** é criar um "Desenvolvedor Virtual" capaz de gerar, balancear e distribuir conteúdo de jogo de forma contínua e autónoma. O sistema usa *Large Language Models* (LLMs) como Diretores de Jogo, ajustando parâmetros para manter os jogadores num estado de *flow* (desafio ideal).
-
----
-
-## Fase 1 — Estabilidade e Loop de Feedback ✅ (Fevereiro 2026)
-*(Motor Parametrizado, Exportação de Métricas, Diretor de IA via Ollama, DB SQLite)*
-
-## Fase 2 — Modos de Jogo e Complexidade Emergente ✅ (Fevereiro 2026)
-- [x] **Diversidade de Modos:** Modos "PointToPoint" e "Collect".
-- [x] **Geração Procedural Avançada:** *Drunkard's Walk* para Labirintos.
-- [x] **Power-Ups e Armadilhas:** Modificadores de tempo e armadilhas.
-- [x] **Visão Limitada (Fog of War):** Adicionada a mecânica de `visionRadius` com luz pontual.
-
-## Fase 3 — Observabilidade e Dashboards (Data Science) 📊 ✅ (Fevereiro 2026)
-- [x] Dashboard Streamlit com separação de Tabs (Métricas vs Arte).
-- [x] Visualização de Tendências por Modo de Jogo e por Nível.
-- [x] Diff Automático de Genomas e Logs do Diretor IA.
-- [x] Estúdio de Arte IA: Geração de Asset Packs (8 texturas/sprites) via SDXL + Rembg.
+## 🚀 Visão Geral
+Transformar o Studio-AI de um protótipo funcional num estúdio de produção contínua, onde a IA gera o código, a arte, o som e a própria estratégia de marketing.
 
 ---
 
-## Fase 4 — O "Game Loop" Roguelite (Metajogo) 👤
-- [x] **Polimento da Câmara:** Suavização com SmoothDamp concluída.
-- [x] **Glossário de Itens:** Manual de sobrevivência básico implementado.
-- [x] **Botão de Reiniciar:** Sistema de reset de save operacional.
-- [ ] **Game Feel (Juice):** Implementar Screen Shake e Partículas de Voxels.
-- [ ] **Feedback Sonoro:** Adicionar biblioteca de SFX (passos, moedas, dano).
+## Fase 4 — Game Feel, Som & Metajogo (Conclusão) 👤
+*Foco: Impacto físico, feedback sonoro e retenção do jogador.*
+- [x] **Polimento da Câmara:** Suavização com `SmoothDamp` implementada.
+- [x] **Glossário de Itens:** Manual de sobrevivência básico operacional.
+- [ ] **Juice Visual (Física):**
+    - [ ] **Screen Shake:** Tremor de ecrã em impactos (danos/vitórias).
+    - [ ] **Voxel Particles:** Explosão de cubos com `Rigidbody` ao coletar moedas ou morrer.
+- [ ] **Sonoplastia Dinâmica:**
+    - [ ] **SFX Encurtados:** Limitar sons de Moeda/Win/Lose a máx. 2 segundos para evitar estática.
+    - [ ] **Mixagem:** Baixar Background Music para 25% e manter SFX a 100%.
+- [ ] **Feedback de Save:** Indicador visual de progresso guardado.
 
-## Fase 5 — Lançamento Server-Side e Mobile Cloud ☁️📱
-- [ ] **Otimização Crítica:** Implementar Mesh Combiner no VoxelRenderer para performance mobile.
-- [ ] **Controlos Táteis:** Criar o Joystick Virtual e suporte a gestos (swipes).
-- [ ] **Backend Cloud:** Migrar o game_director.py para FastAPI.
-- [ ] **Backend Cloud (FastAPI):** Migrar a evolução da IA para um servidor remoto (essencial para Mobile).
+## Fase 5 — Agente de Marketing & Persistência 🚀 (NOVA)
+*Foco: Automação da comunicação e segurança de dados.*
+- [ ] **Marketing Agent (`brain/marketing_agent.py`):**
+    - [ ] Integração com Ollama para ler `evolution.db` e gerar posts contextuais.
+    - [ ] Criação de legendas baseadas em vitórias reais ou novos recordes.
+- [ ] **Marketing Hub (Dashboard):**
+    - [ ] **Calendário Semanal:** Visualização de 7 dias de posts na Navbar Lateral.
+    - [ ] **Persistência Segura:** Salvar planos em `memory/marketing_plan.json` (protegido de resets).
+    - [ ] **Fluxo de Review:** Sistema de aprovação manual antes da exportação final.
+- [ ] **Gerador de Trailers:** Script Unity para captura orbital (Hero Shot) de novos níveis.
+
+## Fase 6 — Otimização Crítica & Cloud Mobile ☁️📱
+*Foco: Performance para dispositivos móveis e infraestrutura web.*
+- [ ] **Otimização de Render:** Implementar `Mesh Combiner` no `VoxelRenderer` para reduzir Draw Calls.
+- [ ] **Backend Robusto (FastAPI):**
+    - [ ] Migrar lógica do `game_director.py` e `marketing_agent.py` para uma API REST.
+    - [ ] Desacoplar o Dashboard do Streamlit para uma arquitetura Client-Server.
 - [ ] **Versão Mobile (Android/iOS):**
-    - [ ] Implementar Joystick Virtual para movimento tátil.
-    - [ ] Otimização de Voxels para performance em telemóveis.
-    - [ ] Interface de utilizador escalável para ecrãs pequenos.
-- [ ] **Telemetria Global:** Base de dados na cloud para comparar performance entre jogadores PC e Mobile.
-- [ ] **Leaderboards Globais:** Tabela de pontuações sincronizada via API.
+    - [ ] Joystick Virtual e controlos por gestos (Swipes).
+    - [ ] UI Adaptativa (Anchors) para diferentes resoluções.
 
-## Fase 6 — Deploy Final & Polimento 🚀
-- [ ] **Lançamento Multiplataforma:** PC (Itch.io) e Mobile (APK/App Store).
-- [ ] **Auto-Patching:** Download de assets (sprites/texturas) dinamicamente via API.
+## Fase 7 — Ecossistema & Monetização 💰
+*Foco: Comunidade, venda de assets e expansão de géneros.*
+- [ ] **Discord Command Center:** Bot para reportar novos níveis e permitir votações da comunidade.
+- [ ] **Asset Store Exporter:** Ferramenta para empacotar e vender texturas/sons gerados pela IA.
+- [ ] **Evolução do Gameplay:** Transição de Rouglite simples para *Auto-Battler* ou *Narrative Dungeon Crawler*.
+- [ ] **Migração Frontend:** Reescrita do Dashboard em **React** ou **Angular** para maior interatividade.
