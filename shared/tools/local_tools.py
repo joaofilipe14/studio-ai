@@ -122,7 +122,7 @@ def env_info() -> ToolResult:
     except Exception as e:
         return ToolResult(False, f"env_info error: {e}")
 
-def run_game_simulation(exe_path: str, metrics_path: str, timeout: int = 120) -> ToolResult:
+def run_game_simulation(exe_path: str, metrics_path: str, log_dir: str = "workspace/logs", timeout: int = 120) -> ToolResult:
     """
     Executa o jogo Unity em modo Headless, escuta os logs em tempo real,
     grava-os num ficheiro e lê o metrics.json.
@@ -170,7 +170,6 @@ def run_game_simulation(exe_path: str, metrics_path: str, timeout: int = 120) ->
         stdout_str = "\n".join(captured_output)
 
         # 🚨 NOVO: GUARDAR O LOG COMPLETO NUM FICHEIRO FÍSICO!
-        log_dir = "logs"
         os.makedirs(log_dir, exist_ok=True)
         log_file_path = os.path.join(log_dir, "latest_simulation.log")
 

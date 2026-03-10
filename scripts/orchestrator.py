@@ -7,11 +7,10 @@ import random
 import yaml
 from rich import print
 
-from brain.tool_runner import call_tool
-from db.evolution_logger import init_db, log_evolution_to_db
-
+from shared.tool_runner import call_tool
+from shared.db.evolution_logger import init_db, log_evolution_to_db
+from services.game_director.logic import evolve_bot_genome
 # Importamos a personalidade BOT do nosso novo Cérebro Central
-from brain.game_director import evolve_bot_genome
 
 
 def load_yaml(path: str):
@@ -41,7 +40,7 @@ def log_jsonl(log_path: str, obj):
 def main():
     config = load_yaml("config.yaml")
     state_path = config["paths"]["state"]
-    db_path = os.path.join(config["paths"]["logs"], "evolution.db")
+    db_path = os.path.join(config["paths"]["data"], "evolution.db")
     init_db(db_path)
 
     state = load_state(state_path)
@@ -50,7 +49,11 @@ def main():
 
     # 1. DEFINIÇÃO DE CAMINHOS
     pn = "game_001"
-    proj_abs = os.path.abspath(os.path.join("projects", pn))
+
+    # 🎯 Lemos o caminho dos projetos diretamente do YAML (se não existir, usa "workspace/projects")
+    projects_dir = config.get("paths", {}).get("projects", "workspace/projects")
+    proj_abs = os.path.abspath(os.path.join(projects_dir, pn))
+
     exe_path = os.path.join(proj_abs, "Builds", "Game001.exe")
     metrics_path = os.path.join(proj_abs, "Builds", "metrics.json")
 
@@ -58,7 +61,7 @@ def main():
     campaign_path = os.path.join(proj_abs, "Builds", "level_genome.json")
 
     # Caminho do Template Original
-    template_campaign_path = os.path.join("templates", "unity", "level_genome.json")
+    template_campaign_path = os.path.join("templates", "json", "level_genome.json")
 
     # Variável de contexto para as tools saberem onde trabalhar
     tool_context = {
@@ -200,7 +203,8 @@ def main():
     # 9. O VERDADEIRO HALL OF FAME (CAMPANHA COMPLETA VENCEDORA)
     # =========================================================
     if campaign_completed:
-        hall_of_fame_dir = os.path.join("hall_of_fame")
+        # 🎯 Lemos o caminho do Hall of Fame diretamente do YAML
+        hall_of_fame_dir = config.get("paths", {}).get("hall_of_fame", "workspace/hall_of_fame")
         os.makedirs(hall_of_fame_dir, exist_ok=True)
 
         # Guarda a Campanha inteira (o array de 10 níveis)

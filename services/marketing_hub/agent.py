@@ -1,10 +1,11 @@
 import json
 import os
-from brain.ollama_client import chat
-from db.evolution_logger import get_evolution_history
+from shared.ollama_client import chat
+from shared.db.evolution_logger import get_evolution_history
 
-# Caminho para o ficheiro de persistência
-MARKETING_FILE = os.path.join("memory", "marketing_plan.json")
+# Sobe dois níveis para chegar à raiz do projeto e entrar em 'memory'
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+MARKETING_FILE = os.path.join(BASE_DIR, "memory", "marketing_plan.json")
 
 def generate_weekly_marketing_plan(db_path, theme):
     """Consulta a BD e gera 7 posts baseados na performance real."""
@@ -30,10 +31,9 @@ def generate_weekly_marketing_plan(db_path, theme):
             "dia": dia,
             "tipo": post_type,
             "texto": texto,
-            "reviewed": False  # 🚩 Flag para o teu review
+            "reviewed": False
         })
 
-    # Guarda no ficheiro JSON para persistência
     save_marketing_plan(plan)
     return plan
 

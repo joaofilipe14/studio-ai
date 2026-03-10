@@ -3,7 +3,7 @@ import re
 import json
 from typing import Optional, Tuple, List
 
-from brain.ollama_client import chat
+from shared.ollama_client import chat
 
 
 def extract_first_json_object(text: str) -> Optional[dict]:

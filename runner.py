@@ -1,7 +1,6 @@
 import yaml
 import time
 import sys
-import os
 from rich import print
 
 # Importamos o main limpo do orchestrator

@@ -4,7 +4,7 @@ import os
 import shutil
 from typing import Any, Dict, Optional
 
-from tools.local_tools import (
+from shared.tools.local_tools import (
     env_info,
     list_dir,
     read_file,
@@ -14,7 +14,7 @@ from tools.local_tools import (
     snapshot_restore,
     run_game_simulation,
 )
-from tools.unity_tools import (
+from shared.tools.unity_tools import (
     find_unity_editor,
     unity_create_project,
     unity_run_execute_method,
@@ -127,21 +127,27 @@ def call_tool(
         if not args.get("unity_path") and tool_context.get("unity_path"):
             args["unity_path"] = tool_context["unity_path"]
 
+        # 🎯 1. LER O PROJECT_PATH DINAMICAMENTE
         if not args.get("project_path"):
-            pn = args.get("project_name") or tool_context.get("project_name")
-            if isinstance(pn, str) and pn.strip():
-                args["project_path"] = os.path.join("projects", pn.strip())
-
-        if not args.get("project_path") and tool_context.get("project_path"):
-            args["project_path"] = tool_context["project_path"]
+            # Dá prioridade ao path exato enviado pelo Orquestrador
+            if tool_context.get("project_path"):
+                args["project_path"] = tool_context["project_path"]
+            else:
+                # Se não houver, lê do config.yaml
+                pn = args.get("project_name") or tool_context.get("project_name")
+                projects_dir = config.get("paths", {}).get("projects", "workspace/projects")
+                if isinstance(pn, str) and pn.strip():
+                    args["project_path"] = os.path.join(projects_dir, pn.strip())
 
         if name == "unity_run_execute_method":
             if "method" not in args and "method_name" in args:
                 args["method"] = args.pop("method_name")
 
+            # 🎯 2. LER O LOG_DIR DINAMICAMENTE
             if not args.get("log_file"):
                 pn = args.get("project_name") or tool_context.get("project_name") or "project"
-                args["log_file"] = os.path.join("logs", f"unity-build-{pn}.log")
+                logs_dir = config.get("paths", {}).get("logs", "workspace/logs")
+                args["log_file"] = os.path.join(logs_dir, f"unity-build-{pn}.log")
 
             if not args.get("unity_path"):
                 return {"ok": False, "output": "unity_run_execute_method requires unity_path.", "data": None}
@@ -329,6 +335,10 @@ def call_tool(
                     args["content"] = load_template(tmpl_name)
                 except Exception as e:
                     return {"ok": False, "output": f"Failed template {tmpl_name}: {e}"}
+    if name == "run_game_simulation":
+        if "log_dir" not in args:
+            # Vai buscar o path de logs ao config.yaml
+            args["log_dir"] = config.get("paths", {}).get("logs", "workspace/logs")
 
     res = TOOLS[name](**args)
     return {"ok": res.ok, "output": res.output, "data": res.data}
