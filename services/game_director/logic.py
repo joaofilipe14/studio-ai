@@ -1,8 +1,5 @@
 import json
 import random
-from rich import print
-
-# Importações da nova pasta partilhada
 from shared.planning import extract_first_json_object
 from shared.ollama_client import chat
 
@@ -10,163 +7,160 @@ from shared.ollama_client import chat
 # 🚨 CURVA DE DIFICULDADE (Game Design)
 # ==========================================
 def get_target_win_rate(level_id: int, is_human: bool) -> tuple[float, float]:
-    """Define a margem de vitória ideal com base no nível atual."""
+    """Define a margem de vitória ideal com base no nível atual.
+       Quanto maior o nível, menor o win_rate exigido (o jogo fica mais difícil)."""
     if is_human:
-        if level_id <= 2: return 0.90, 1.00   # Tutorial
+        if level_id <= 2: return 0.90, 1.00   # Tutorial (Quase impossível perder)
         if level_id <= 4: return 0.80, 0.95   # Aquecimento
-        if level_id <= 7: return 0.65, 0.85   # Desafio
-        return 0.50, 0.70                     # Bosses
+        if level_id <= 7: return 0.60, 0.80   # Desafio (Começa a suar)
+        return 0.40, 0.60                     # Bosses (Vai morrer algumas vezes)
     else:
-        if level_id <= 2: return 0.90, 1.00
-        if level_id <= 4: return 0.75, 0.95
-        if level_id <= 7: return 0.55, 0.80
-        return 0.40, 0.60
+        # Bot precisa de uma margem mais apertada para o forçar a desenhar níveis precisos
+        if level_id <= 2: return 0.85, 1.00
+        if level_id <= 4: return 0.70, 0.90
+        if level_id <= 7: return 0.50, 0.75
+        return 0.35, 0.55
+
+def get_progressive_boundaries(level_id: int) -> dict:
+    """
+    CRIA A CURVA ASCENDENTE! 📈
+    Limites mínimos e máximos rígidos com base no nível.
+    No nível 1 a IA nunca pode colocar 15 inimigos, e no nível 10 nunca pode colocar zero.
+    """
+    # Base = 1 a 10 (onde 1 é muito fácil e 10 é pesadelo)
+    progression_factor = level_id / 10.0
+
+    return {
+        # Inimigos: de 0-3 (Nível 1) até 8-15 (Nível 10)
+        "min_enemies": int(0 + (progression_factor * 8)),
+        "max_enemies": int(3 + (progression_factor * 12)),
+
+        # Velocidade: de 1.5-2.5 (Nível 1) até 4.0-8.0 (Nível 10)
+        "min_speed": round(1.5 + (progression_factor * 2.5), 1),
+        "max_speed": round(2.5 + (progression_factor * 5.5), 1),
+
+        # Obstáculos: de 10-40 (Nível 1) até 100-250 (Nível 10)
+        "min_obstacles": int(10 + (progression_factor * 90)),
+        "max_obstacles": int(40 + (progression_factor * 210))
+    }
 
 def evolve_bot_genome(config: dict, metrics: dict, current_genome: dict) -> dict:
-    """Diretor de IA: Focado no balanceamento matemático do Bot."""
-    current_mode = current_genome.get("mode", "PointToPoint")
     level_id = current_genome.get("level_id", 1)
 
     target_min, target_max = get_target_win_rate(level_id, is_human=False)
+    bounds = get_progressive_boundaries(level_id)
 
     level_reports = metrics.get("level_reports", [])
-    my_report = {}
-    for rep in level_reports:
-        if rep.get("level_id") == level_id:
-            my_report = rep
-            break
+    my_report = next((rep for rep in level_reports if rep.get("level_id") == level_id), {})
 
     win_rate = my_report.get("win_rate", 0.0)
     avg_time = my_report.get("avg_time_to_goal", 0.0)
     stuck_events = my_report.get("stuck_events", 0)
 
-    min_time = level_id * 15.0
-    max_time = level_id * 25.0
-
     prompt = f"""
-        You are an AI Level Designer. You are evolving the current LEVEL GENOME.
+        You are an expert Game Level Designer. Your goal is to create a SMOOTH ASCENDING DIFFICULTY CURVE.
+        You are evolving LEVEL {level_id} of a 10-level campaign.
         
         CURRENT LEVEL CONFIGURATION:
-        - Mode: {current_mode}
         - Level Genome: {json.dumps(current_genome, indent=2)}
         
-        LATEST BOT SIMULATION METRICS FOR THIS LEVEL:
-        - Actual Win Rate: {win_rate:.2f}
+        BOT SIMULATION METRICS:
+        - Actual Win Rate: {win_rate:.2f} (Your target is {target_min:.2f} to {target_max:.2f})
         - Average Time to Goal: {avg_time:.1f}s
         - Stuck/Death Events: {stuck_events}
         
-        STRICT EVOLUTION RULES:
-        1. Keep "mode" as "{current_mode}" and "level_id" EXACTLY as {level_id}.
-        2. TARGET WIN RATE FOR LEVEL {level_id}: {target_min:.2f} to {target_max:.2f}.
-        3. DYNAMIC TARGET PACING: Rounds should last {min_time} to {max_time} seconds. 
-        4. NUMERICAL BOUNDARIES (DO NOT EXCEED):
-           - "rules.enemyCount" MUST be between 0 and 15.
-           - "rules.enemySpeed" MUST be between 1.5 and 8.0.
-           - "rules.timeLimit" MUST be between 15.0 and 180.0.
-           - "obstacles.count" MUST be between 10 and 300.
-        5. IF Actual Win Rate ({win_rate:.2f}) is HIGHER than {target_max:.2f} (Too Easy): 
-           - Make it HARDER by INCREASING "enemyCount", INCREASING "enemySpeed", DECREASING "timeLimit", or INCREASING "obstacles.count".
-        6. IF Actual Win Rate ({win_rate:.2f}) is LOWER than {target_min:.2f} (Too Hard): 
-           - Make it EASIER by DECREASING "enemyCount", DECREASING "enemySpeed", INCREASING "timeLimit", or DECREASING "obstacles.count".
+        STRICT PROGRESSION RULES FOR LEVEL {level_id}:
+        1. You MUST keep "level_id" as {level_id}. DO NOT generate a "mode" field.
+        2. NUMERICAL BOUNDARIES (CRITICAL FOR PROGRESSION):
+           - "rules.enemyCount" MUST be between {bounds['min_enemies']} and {bounds['max_enemies']}.
+           - "rules.enemySpeed" MUST be between {bounds['min_speed']} and {bounds['max_speed']}.
+           - "obstacles.count" MUST be between {bounds['min_obstacles']} and {bounds['max_obstacles']}.
+        3. IF Actual Win Rate ({win_rate:.2f}) is HIGHER than {target_max:.2f}: Make it HARDER within the boundaries.
+        4. IF Actual Win Rate ({win_rate:.2f}) is LOWER than {target_min:.2f}: Make it EASIER within the boundaries.
         
-        OUTPUT TASK: Return ONLY a strictly valid JSON object.
+        OUTPUT TASK: Return ONLY a strictly valid JSON object representing the new genome.
     """
 
     raw_result = _call_ollama(config, prompt, "Bot", current_genome)
-
-    # 🎯 Lógica de Extração Robusta
     ng = raw_result.get("new_genome", raw_result)
 
-    if isinstance(ng, dict) and "mode" in ng:
-        # 🛡️ Blindagem de dados essenciais
+    if isinstance(ng, dict):
         ng["level_id"] = level_id
-        ng["mode"] = current_mode
         ng["seed"] = random.randint(1000, 99999)
 
         rules = ng.get("rules", {})
-        rules["enemyCount"] = max(0, min(15, int(rules.get("enemyCount", 1))))
-        rules["enemySpeed"] = max(1.5, min(8.0, float(rules.get("enemySpeed", 2.0))))
-        rules["timeLimit"] = max(15.0, min(180.0, float(rules.get("timeLimit", 60.0))))
+        rules["enemyCount"] = max(bounds['min_enemies'], min(bounds['max_enemies'], int(rules.get("enemyCount", 1))))
+        rules["enemySpeed"] = max(bounds['min_speed'], min(bounds['max_speed'], float(rules.get("enemySpeed", 2.0))))
         ng["rules"] = rules
 
         obstacles = ng.get("obstacles", {})
-        obstacles["count"] = max(10, min(300, int(obstacles.get("count", 50))))
+        obstacles["count"] = max(bounds['min_obstacles'], min(bounds['max_obstacles'], int(obstacles.get("count", 50))))
         ng["obstacles"] = obstacles
 
-        return {"report": "Evolução do Bot concluída.", "new_genome": ng}
+        return {"report": f"Evolução Bot Lvl {level_id} concluída (Curva Ascendente).", "new_genome": ng}
 
-    return {"report": "Falha ao processar genoma da IA.", "new_genome": current_genome}
+    return {"report": "Falha ao processar.", "new_genome": current_genome}
 
 def evolve_human_genome(config: dict, metrics: dict, current_genome: dict) -> dict:
-    """Diretor de IA: Focado na psicologia do Jogador Humano."""
-    current_mode = current_genome.get("mode", "PointToPoint")
     level_id = current_genome.get("level_id", 1)
 
     target_min, target_max = get_target_win_rate(level_id, is_human=True)
 
+    bounds = get_progressive_boundaries(level_id)
+    bounds['max_enemies'] = max(bounds['min_enemies'], int(bounds['max_enemies'] * 0.85))
+    bounds['max_speed'] = max(bounds['min_speed'], bounds['max_speed'] * 0.85)
+
     level_reports = metrics.get("level_reports", [])
-    my_report = {}
-    for rep in level_reports:
-        if rep.get("level_id") == level_id:
-            my_report = rep
-            break
+    my_report = next((rep for rep in level_reports if rep.get("level_id") == level_id), {})
 
     win_rate = my_report.get("win_rate", 0.0)
     stuck_events = my_report.get("stuck_events", 0)
 
     prompt = f"""
-        You are an AI Level Designer. Your target audience is a HUMAN PLAYER.
+        You are an expert Game Level Designer. Your audience is a HUMAN PLAYER. 
+        Your goal is to avoid frustration but maintain a progressive challenge.
+        You are evolving LEVEL {level_id}.
         
-        CURRENT LEVEL CONFIGURATION:
-        - Mode: {current_mode}
-        - Level Genome: {json.dumps(current_genome, indent=2)}
+        CURRENT LEVEL: {json.dumps(current_genome, indent=2)}
         
         HUMAN PLAYER METRICS:
-        - Actual Win Rate: {win_rate:.2f}
+        - Actual Win Rate: {win_rate:.2f} (Your target is {target_min:.2f} to {target_max:.2f})
         - Times Died: {stuck_events}
 
-        STRICT EVOLUTION RULES FOR HUMAN PSYCHOLOGY:
-        1. Keep "mode" as "{current_mode}".
-        2. TARGET WIN RATE FOR LEVEL {level_id}: {target_min:.2f} to {target_max:.2f}.
-        3. NUMERICAL BOUNDARIES (DO NOT EXCEED):
-           - "rules.enemyCount" MUST be between 0 and 15.
-           - "rules.enemySpeed" MUST be between 1.5 and 8.0.
-           - "rules.timeLimit" MUST be between 15.0 and 180.0.
-           - "obstacles.count" MUST be between 10 and 300.
-        4. IF Actual Win Rate ({win_rate:.2f}) is HIGHER than {target_max:.2f} (Too Easy): 
-           - Make it HARDER by INCREASING "enemyCount", INCREASING "enemySpeed", or INCREASING "obstacles.count".
-        5. IF Actual Win Rate ({win_rate:.2f}) is LOWER than {target_min:.2f} (Frustrating): 
-           - Make it MUCH EASIER by DECREASING "enemyCount" (towards 0-3), DECREASING "enemySpeed" (towards 1.5-3.0), and INCREASING "timeLimit".
+        STRICT PROGRESSION RULES FOR HUMAN PSYCHOLOGY:
+        1. You MUST keep "level_id" as {level_id}. DO NOT generate a "mode" field.
+        2. HUMAN-SAFE BOUNDARIES FOR LEVEL {level_id}:
+           - "rules.enemyCount" MUST be between {bounds['min_enemies']} and {bounds['max_enemies']}.
+           - "rules.enemySpeed" MUST be between {bounds['min_speed']} and {bounds['max_speed']}.
+           - "obstacles.count" MUST be between {bounds['min_obstacles']} and {bounds['max_obstacles']}.
+        3. IF Win Rate is {win_rate:.2f} (LOWER than {target_min:.2f}): The player is frustrated. Make it EASIER immediately!
+        4. IF Win Rate is {win_rate:.2f} (HIGHER than {target_max:.2f}): The player is bored. Add slightly more enemies or speed.
         
         OUTPUT TASK: Return ONLY a strictly valid JSON object.
     """
 
     raw_result = _call_ollama(config, prompt, "Humano", current_genome)
-
-    # 🎯 Lógica de Extração Robusta
     ng = raw_result.get("new_genome", raw_result)
 
-    if isinstance(ng, dict) and "mode" in ng:
+    if isinstance(ng, dict):
         ng["level_id"] = level_id
-        ng["mode"] = current_mode
         ng["seed"] = random.randint(1000, 99999)
 
         rules = ng.get("rules", {})
-        rules["enemyCount"] = max(0, min(15, int(rules.get("enemyCount", 1))))
-        rules["enemySpeed"] = max(1.5, min(8.0, float(rules.get("enemySpeed", 2.0))))
-        rules["timeLimit"] = max(15.0, min(180.0, float(rules.get("timeLimit", 60.0))))
+        rules["enemyCount"] = max(bounds['min_enemies'], min(bounds['max_enemies'], int(rules.get("enemyCount", 1))))
+        rules["enemySpeed"] = max(bounds['min_speed'], min(bounds['max_speed'], float(rules.get("enemySpeed", 2.0))))
         ng["rules"] = rules
 
         obstacles = ng.get("obstacles", {})
-        obstacles["count"] = max(10, min(300, int(obstacles.get("count", 50))))
+        obstacles["count"] = max(bounds['min_obstacles'], min(bounds['max_obstacles'], int(obstacles.get("count", 50))))
         ng["obstacles"] = obstacles
 
-        return {"report": "Evolução Humana concluída.", "new_genome": ng}
+        return {"report": f"Evolução Humana Lvl {level_id} concluída.", "new_genome": ng}
 
-    return {"report": "Falha ao processar genoma da IA.", "new_genome": current_genome}
+    return {"report": "Falha ao processar.", "new_genome": current_genome}
 
+# (A função _call_ollama mantém-se exatamente igual)
 def _call_ollama(config: dict, prompt: str, target_audience: str, fallback_genome: dict) -> dict:
-    """Faz a chamada ao Ollama e regista a resposta bruta para debug."""
     messages = [
         {"role": "system", "content": "You are a deterministic AI that outputs ONLY valid JSON. No markdown."},
         {"role": "user", "content": prompt}
@@ -180,11 +174,6 @@ def _call_ollama(config: dict, prompt: str, target_audience: str, fallback_genom
     )
 
     content = resp["message"]["content"]
-
-    # Logs para depuração no terminal
-    print("\n[bold cyan]🧠 --- RESPOSTA BRUTA DO OLLAMA (AI DIRECTOR) --- 🧠[/bold cyan]")
-    print(content)
-    print("[bold cyan]--------------------------------------------------------[/bold cyan]\n")
 
     extracted_json = extract_first_json_object(content)
     if extracted_json is None:

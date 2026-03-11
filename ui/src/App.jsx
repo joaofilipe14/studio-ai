@@ -1,20 +1,26 @@
 import React, { useState } from 'react';
+import Home from './Home';
 import Vault from './Vault';
 import MarketingHub from './Marketing';
 import AudioStudio from './Audio';
 import ArtStudio from './Art';
 import Performance from './Performance';
+// Não te esqueças de importar também o Hall of Fame se já o tiveres criado!
+import HallOfFame from './HallOfFame';
 
 export default function App() {
-  const [activePage, setActivePage] = useState('marketing');
+  // 🎯 1. AQUI: Começa a app na aba 'home' em vez de 'marketing'
+  const [activePage, setActivePage] = useState('home');
 
-  // Menu de navegação igual ao do Streamlit
+  // 🎯 2. AQUI: Adiciona os botões da Home e do Hall of Fame ao menu
   const menuItems = [
+    { id: 'home', label: '🏠 Dashboard' },              // <--- NOVO
     { id: 'performance', label: '📈 Performance' },
+    { id: 'hall', label: '🏆 Hall of Fame' },           // <--- NOVO
     { id: 'art', label: '🎨 Estúdio de Arte' },
     { id: 'audio', label: '🎵 Sonoplastia' },
     { id: 'marketing', label: '🚀 Marketing Hub' },
-    { id: 'vault', label: '🏦 O Cofre' } // Bónus: O cofre agora está no menu!
+    { id: 'vault', label: '🏦 O Cofre' }
   ];
 
   return (
@@ -58,7 +64,10 @@ export default function App() {
 
       {/* ÁREA DE CONTEÚDO PRINCIPAL */}
       <div className="flex-1 overflow-y-auto p-8">
+        {/* 🎯 3. As tuas rotas internas */}
+        {activePage === 'home' && <Home />}
         {activePage === 'performance' && <Performance />}
+        {activePage === 'hall' && <HallOfFame />}
         {activePage === 'art' && <ArtStudio />}
         {activePage === 'audio' && <AudioStudio />}
         {activePage === 'marketing' && <MarketingHub />}

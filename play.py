@@ -73,6 +73,9 @@ def launch_manual_game():
     print(f"[white]Estás no Nível {current_campaign_level} da Campanha.[/white]")
     print("[white]A abrir o jogo... A IA vai analisar a tua performance.[/white]")
 
+    if os.path.exists(metrics_path):
+        os.remove(metrics_path)
+
     # 5. LANÇA O JOGO
     try:
         exe_dir = os.path.dirname(os.path.abspath(exe_path))

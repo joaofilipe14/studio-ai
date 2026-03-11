@@ -124,28 +124,48 @@ public class SimpleAgent : MonoBehaviour {
 
     void RecalculatePath() {
         Vector2Int targetPos = gridPos;
+
+        // 1. Descobrir em que nível estamos para definir a "Ganância"
+        int currentLvl = GameManager.Instance.currentLevel != null ? GameManager.Instance.currentLevel.level_id : 1;
+
+        // 2. Calcular a Quota: Quantas moedas o Bot vai tentar apanhar antes de fugir?
+        float greedPercentage = 1.0f; // Níveis 1 e 2: Tenta apanhar 100% das moedas
+
+        if (currentLvl >= 8) greedPercentage = 0.25f;      // Níveis 8-10: Muito perigoso, só apanha 25%
+        else if (currentLvl >= 5) greedPercentage = 0.50f; // Níveis 5-7: Risco moderado, apanha 50%
+        else if (currentLvl >= 3) greedPercentage = 0.75f; // Níveis 3-4: Apanha 75%
+
+        int targetCoins = Mathf.RoundToInt(GameManager.Instance.collectibles * greedPercentage);
+
         GameObjective[] objectives = Object.FindObjectsByType<GameObjective>(FindObjectsSortMode.None);
-        if (GameManager.Instance.currentMode == "PointToPoint") {
+        bool seekingCoin = false;
+
+        // 3. DECISÃO: Ainda lhe faltam moedas para atingir a quota?
+        if (GameManager.Instance.collectedInRound < targetCoins) {
+            float minDist = float.MaxValue;
+            foreach (var obj in objectives) {
+                if (obj.type == ObjectiveType.Coin) {
+                    float d = Vector2Int.Distance(gridPos, obj.gridPos);
+                    if (d < minDist) {
+                        minDist = d;
+                        targetPos = obj.gridPos;
+                        seekingCoin = true;
+                    }
+                }
+            }
+        }
+
+        // 4. DECISÃO: Se já atingiu a quota, ou se não sobraram moedas... FOGE PARA O PORTAL!
+        if (!seekingCoin) {
             foreach (var obj in objectives) {
                 if (obj.type == ObjectiveType.ExitPortal) {
                     targetPos = obj.gridPos;
                     break;
                 }
             }
-        } else {
-            float minDist = float.MaxValue;
-            foreach (var c in objectives) {
-                if (c.type == ObjectiveType.Coin) {
-                    float d = Vector2Int.Distance(gridPos, c.gridPos);
-                    if (d < minDist) {
-                        minDist = d;
-                        targetPos = c.gridPos;
-                    }
-                }
-            }
         }
 
-        // Calcular a Rota
+        // Calcular a Rota usando BFS
         currentPath = FindPathBFS(gridPos, targetPos);
         pathIndex = 0;
 

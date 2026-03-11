@@ -24,12 +24,12 @@ def publish_game():
 
     # Lemos os caminhos configurados
     projects_root = paths.get("projects", "workspace/projects")
-    # 🎯 Agora a release vai para dentro do workspace!
     releases_root = paths.get("releases", "workspace/releases")
+    hall_of_fame_dir = paths.get("hall_of_fame", "workspace/hall_of_fame") # 🎯 Adicionado Hall of Fame
 
     pn = "game_001"
     builds_dir = os.path.join(projects_root, pn, "Builds")
-    release_dir = os.path.join(releases_root, "game_prod") # 🎯 Caminho atualizado
+    release_dir = os.path.join(releases_root, "game_prod")
 
     if not os.path.exists(builds_dir):
         print(f"[red]Erro: Pasta de Builds não encontrada em {builds_dir}.[/red]")
@@ -42,7 +42,7 @@ def publish_game():
 
     print(f"[white]A empacotar o executável e dados para a Produção...[/white]")
 
-    # 1. Copiar todos os ficheiros compilados do Unity
+    # 1. Copiar todos os ficheiros compilados do Unity (incluindo o .exe)
     for item in os.listdir(builds_dir):
         s = os.path.join(builds_dir, item)
         d = os.path.join(release_dir, item)
@@ -51,19 +51,27 @@ def publish_game():
         else:
             shutil.copy2(s, d)
 
-    # 2. Garantir que os ficheiros JSON estruturais vão junto
-    # Agora procuramos nos novos locais centralizados: templates/json
+    # 2. Garantir que os ficheiros JSON estruturais vão junto com a nova prioridade
     json_files = ["level_genome.json", "roster.json", "player_save.json"]
     for j_file in json_files:
-        # 🎯 Ordem de procura:
-        # 1. Memória de templates (onde a IA guarda as evoluções manuais)
-        # 2. Pasta raiz
-        # 3. Pasta de templates originais do Unity
-        sources = [
-            os.path.join("templates", "json", j_file),
-            os.path.join(".", j_file),
-            os.path.join("templates", "unity", j_file)
-        ]
+        sources = []
+
+        # 🎯 Lógica Inteligente para o Hall of Fame
+        if j_file == "level_genome.json" and os.path.exists(hall_of_fame_dir):
+            # Procura a campanha de sucesso mais recente
+            masterpieces = [f for f in os.listdir(hall_of_fame_dir) if f.startswith("campaign_masterpiece_") and f.endswith(".json")]
+            if masterpieces:
+                masterpieces.sort(reverse=True) # Põe a mais recente no topo (baseado na data do ficheiro)
+                sources.append(os.path.join(hall_of_fame_dir, masterpieces[0]))
+
+        # Constrói a lista de prioridades (do mais importante para o menos importante)
+        sources.extend([
+            os.path.join(hall_of_fame_dir, j_file),     # 1.5. Hall of Fame (caso tenha o nome exato)
+            os.path.join(builds_dir, j_file),           # 2. Pasta de Builds (A Campanha a ser ativamente evoluída)
+            os.path.join("templates", "json", j_file),  # 3. Templates (Onde guardamos as evoluções manuais)
+            os.path.join(".", j_file),                  # 4. Raiz do projeto
+            os.path.join("templates", "unity", j_file)  # 5. Template original de fallback
+        ])
 
         copied = False
         for src in sources:

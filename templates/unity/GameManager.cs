@@ -3,10 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 
 [System.Serializable]
-public class LevelReport
-{
+public class LevelReport {
     public int level_id;
-    public string mode;
     public int total_rounds;
     public int wins;
     public float win_rate;
@@ -15,16 +13,14 @@ public class LevelReport
 }
 
 [System.Serializable]
-public class CampaignMetrics
-{
+public class CampaignMetrics {
     public bool campaign_completed; // Chegou ao fim do nível 10?
     public int bottleneck_level;
     public bool is_human;
     public List<LevelReport> level_reports = new List<LevelReport>();
 }
 
-public class GameManager : MonoBehaviour
-{
+public class GameManager : MonoBehaviour {
     public static GameManager Instance { get; private set; }
 
     // ==========================================
@@ -64,7 +60,6 @@ public class GameManager : MonoBehaviour
     public bool isPlaying = false;
 
     [Header("Progresso da Ronda")]
-    public string currentMode = "PointToPoint";
     public int collectedInRound = 0;
 
     [Header("Agente e Inimigo")]
@@ -86,6 +81,11 @@ public class GameManager : MonoBehaviour
     private float totalPlayTime = 0f;
     private float roundPlayTime = 0f;
 
+    [Header("Marketing & Media")]
+    public TrailerDirector trailerDirector;
+    public bool isTrailerMode = false;
+    public string trailerFolderPath = "";
+
     [Header("Relatório Global")]
     public CampaignMetrics globalMetrics = new CampaignMetrics();
 
@@ -102,7 +102,17 @@ public class GameManager : MonoBehaviour
 
     void Awake() {
         if (Instance == null) Instance = this;
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+        RenderSettings.ambientLight = new Color(0.2f, 0.25f, 0.3f);
+        string[] args = System.Environment.GetCommandLineArgs();
+        for (int i = 0; i < args.Length; i++) {
+            if (args[i] == "-trailerMode") isTrailerMode = true;
+            if (args[i] == "-trailerFolder" && i + 1 < args.Length) {
+                trailerFolderPath = args[i + 1];
+            }
+        }
         if (gameObject.GetComponent<UIManager>() == null) gameObject.AddComponent<UIManager>();
+        SetupGlobalLight();
         LoadGenomeConfig();
     }
 
@@ -119,8 +129,6 @@ public class GameManager : MonoBehaviour
         isPlaying = true;
         collectedInRound = 0;
 
-        currentMode = currentLevel.mode;
-        Debug.Log($"Current mode: {currentMode}");
         timeLimit = currentLevel.rules.timeLimit;
         if (timeLimit <= 0.1f) timeLimit = 30f;
         collectibles = currentLevel.rules.targetCount;
@@ -170,24 +178,59 @@ public class GameManager : MonoBehaviour
        LevelSpawner.CalculateReachableArea(world, agent.gridPos);
 
        float minGoalDistance = Mathf.Max(gridWidth, gridHeight) * 0.4f;
-       float minEnemySafeDistance = Mathf.Max(gridWidth, gridHeight) * 0.3f;
+              float minEnemySafeDistance = Mathf.Max(gridWidth, gridHeight) * 0.3f;
 
-        if (currentLevel.rules.enemyCount > 0)
-            LevelSpawner.SpawnEnemies(world, rng, currentLevel.rules.enemyCount, chaserMoveSpeed, agent.gridPos, minEnemySafeDistance);
+               if (currentLevel.rules.enemyCount > 0)
+                   LevelSpawner.SpawnEnemies(world, rng, currentLevel.rules.enemyCount, chaserMoveSpeed, agent.gridPos, minEnemySafeDistance);
+               LevelSpawner.SpawnGoal(world, rng, agent.gridPos, minGoalDistance);
 
-        if (currentMode == "PointToPoint")
-            LevelSpawner.SpawnGoal(world, rng, agent.gridPos, minGoalDistance);
-        else
-            LevelSpawner.SpawnCollectibles(world, rng, collectibles);
+               if (collectibles > 0)
+                   LevelSpawner.SpawnCollectibles(world, rng, collectibles);
 
-        if (currentLevel.rules.powerUpCount > 0)
-            LevelSpawner.SpawnPowerUps(world, rng, currentLevel.rules.powerUpCount);
+               if (currentLevel.rules.powerUpCount > 0)
+                   LevelSpawner.SpawnPowerUps(world, rng, currentLevel.rules.powerUpCount);
 
         if (currentLevel.rules.trapCount > 0)
             LevelSpawner.SpawnTraps(world, rng, currentLevel.rules.trapCount, currentLevel.rules.trapPenalty);
         if (userControl) {
             Cursor.visible = false;
             Cursor.lockState = CursorLockMode.Locked;
+        }
+        if (isTrailerMode) {
+            // Esconde a interface gráfica para ficar um vídeo limpo
+            if (UIManager.Instance != null) UIManager.Instance.HideUIForTrailer();
+
+            if (trailerDirector == null) trailerDirector = gameObject.AddComponent<TrailerDirector>();
+            Vector3 heroTarget = (agent != null) ? agent.transform.position : new Vector3((gridWidth * cellSize) / 2f, 0, (gridHeight * cellSize) / 2f);
+            // Inicia o vídeo e manda fechar o jogo quando acabar!
+            trailerDirector.StartHeroShot(heroTarget, trailerFolderPath, () => {
+                #if UNITY_EDITOR
+                    UnityEditor.EditorApplication.isPlaying = false;
+                #else
+                    Application.Quit();
+                #endif
+            });
+            return;
+        }
+    }
+
+    void SetupGlobalLight() {
+        Light[] allLights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None);
+        bool hasSun = false;
+        foreach (Light l in allLights) {
+            if (l.type == LightType.Directional) hasSun = true;
+        }
+
+        // Se o Unity não tiver um Sol na cena, o código cria um gigante!
+        if (!hasSun) {
+            GameObject lightObj = new GameObject("GlobalSun");
+            Light sun = lightObj.AddComponent<Light>();
+            sun.type = LightType.Directional;
+            sun.color = new Color(0.7f, 0.8f, 1.0f); // Azul claro Cyberpunk
+            sun.intensity = 1.2f; // Força da luz global
+
+            // Aponta para baixo na diagonal para criar sombras fixes
+            lightObj.transform.rotation = Quaternion.Euler(50, -30, 0);
         }
     }
 
@@ -245,32 +288,27 @@ public class GameManager : MonoBehaviour
     }
 
     Material CreateEnvironmentMaterial(string textureName, Color fallbackColor) {
-        // 1. Volta a carregar a tua imagem da pasta Resources/Textures/
         Texture2D tex = Resources.Load<Texture2D>("Textures/" + textureName);
 
-        // 2. Usamos o shader Standard (que aceita texturas e cores)
-         Shader safetyShader = Shader.Find("Unlit/Color");
-         if (safetyShader == null) safetyShader = Shader.Find("Legacy Shaders/VertexLit");
-        Material mat = new Material(safetyShader);
+        // 🚨 TRUQUE NINJA: Extrai o Shader diretamente de um primitivo (que o Unity nunca apaga!)
+        GameObject tempCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Material mat = new Material(tempCube.GetComponent<Renderer>().sharedMaterial.shader);
+        Destroy(tempCube); // Destrói o cubo logo a seguir
 
-        // 3. Aplica as cores do tema Cyberpunk como "Tinta" por cima da textura
         if (currentLevel != null && currentLevel.theme == "Cyberpunk Neon") {
-            if (textureName == "FloorTexture") ColorUtility.TryParseHtmlString("#111111", out fallbackColor); // Cinza muito escuro
-            else if (textureName == "ObstacleTexture") ColorUtility.TryParseHtmlString("#00ffff", out fallbackColor); // Ciano
+            if (textureName == "FloorTexture") ColorUtility.TryParseHtmlString("#303040", out fallbackColor);
+            else if (textureName == "ObstacleTexture") ColorUtility.TryParseHtmlString("#00ffff", out fallbackColor);
         }
 
         mat.color = fallbackColor;
-
-        // 4. Se a textura existir, aplica-a!
         if (tex != null) {
             mat.mainTexture = tex;
-            // Repete a textura do chão para não ficar esticada e borrada num mapa gigante
             if (textureName == "FloorTexture") {
                 mat.mainTextureScale = new Vector2(gridWidth / 4f, gridHeight / 4f);
             }
         }
 
-        mat.SetFloat("_Glossiness", 0.2f); // Um bocadinho de reflexo para o estilo Neon
+        mat.SetFloat("_Glossiness", 0.4f);
         return mat;
     }
 
@@ -295,7 +333,7 @@ public class GameManager : MonoBehaviour
         if (campaignData.Count == 0) {
             Debug.LogWarning("campaign.json não encontrado! A usar Nível de Emergência.");
             campaignData.Add(new LevelGenome {
-                level_id = 1, mode = "PointToPoint", theme = "Cyberpunk Neon", seed = 1234,
+                level_id = 1, theme = "Cyberpunk Neon", seed = 1234,
                 arena = new LevelArena { halfSize = 10f, walls = true },
                 obstacles = new LevelObstacles { count = 50, minScale = 1f, maxScale = 1.5f },
                 rules = new LevelRules { timeLimit = 60f, targetCount = 1, enemyCount = 1, enemySpeed = 2f }
@@ -379,6 +417,7 @@ public class GameManager : MonoBehaviour
         finished = true;
         isPlaying = false;
         winsCount++;
+        int timeCrystalsEarned = Mathf.FloorToInt(currentTimer);
 
         // 🚨 LOG MODO DEV (Vai para o Terminal Python)
         Debug.Log($"[ROUND STATS] Nível: {currentLevel.level_id} | Tentativa: {currentLevelAttempts} | Resultado: VITÓRIA | Tempo: {roundPlayTime:F1}s | Moedas: {collectedInRound}");
@@ -387,7 +426,6 @@ public class GameManager : MonoBehaviour
         // 1. GUARDA O RELATÓRIO DESTE NÍVEL ANTES DE AVANÇAR
         globalMetrics.level_reports.Add(new LevelReport {
             level_id = currentLevel != null ? currentLevel.level_id : 1,
-            mode = this.currentMode,
             total_rounds = currentLevelAttempts,
             wins = 1, // Ganhou esta ronda
             win_rate = currentLevelAttempts > 0 ? 1f / currentLevelAttempts : 0f,
@@ -401,6 +439,7 @@ public class GameManager : MonoBehaviour
             currentPlayer.stats.totalWins++;
             currentPlayer.currentCampaignLevel = Mathf.Max(currentPlayer.currentCampaignLevel, currentLevelIndex + 1);
             currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+            SaveMetrics();
         }
 
         // Limpa as variáveis para o NOVO nível
@@ -413,10 +452,16 @@ public class GameManager : MonoBehaviour
             globalMetrics.campaign_completed = true; // 🎉 SUCESSO TOTAL!
             globalMetrics.bottleneck_level = 0;
 
-            if (userControl && UIManager.Instance != null) UIManager.Instance.ShowEndScreen(true, "CAMPANHA CONCLUÍDA! És uma Lenda!");
+            if (userControl) {
+                SaveMetrics();
+                if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(true, "CAMPANHA CONCLUÍDA! És uma Lenda!");
+            }
             else QuitGame();
         } else {
-            if (userControl && UIManager.Instance != null) UIManager.Instance.ShowEndScreen(true, "Nível Concluído! Prepara-te para o próximo.");
+            if (userControl && UIManager.Instance != null) {
+                string rewardMsg = $"Nível Concluído!\n\nSobreviveste com {timeCrystalsEarned}s de sobra.\nConvertido em {timeCrystalsEarned} Cristais de Tempo 💠!";
+                UIManager.Instance.ShowEndScreen(true, rewardMsg);
+            }
             else Invoke("StartNewRun", 0.05f);
         }
     }
@@ -442,11 +487,21 @@ public class GameManager : MonoBehaviour
                 var cam = Camera.main.GetComponent<CameraController>();
                 if (cam != null) cam.TriggerShake(0.5f, 0.6f);
             }
-            // 🚨 FIX: Ficas com as moedas que conseguiste apanhar antes de morrer!
             currentPlayer.wallet.totalCoins += collectedInRound;
             currentPlayer.stats.currentLives--; // Perde uma vida!
 
             if (currentPlayer.stats.currentLives <= 0) {
+                // 🚨 NOVO: Regista a falha nas métricas antes de resetar as vidas!
+                globalMetrics.level_reports.Add(new LevelReport {
+                    level_id = currentLevel.level_id,
+                    total_rounds = currentLevelAttempts,
+                    wins = 0,
+                    win_rate = 0f,
+                    avg_time_to_goal = currentLevelAttempts > 0 ? (totalPlayTime / currentLevelAttempts) : 0f,
+                    stuck_events = stuckCount
+                });
+                SaveMetrics(); // Grava no disco!
+
                 currentPlayer.stats.currentLives = currentPlayer.stats.maxLives;
                 currentPlayer.currentCampaignLevel = 1;
                 currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
@@ -492,7 +547,6 @@ public class GameManager : MonoBehaviour
         PlaySFX("sfx_coin");
         collectedInRound++;
         totalCollectedGame++;
-        if (collectedInRound >= collectibles) OnGoalReached();
     }
 
     public void AddExtraTime() { currentTimer += timeBoostAmount; }
@@ -536,6 +590,19 @@ public class GameManager : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
     }
 
+    public void SaveMetrics() {
+        globalMetrics.is_human = userControl;
+
+        // Se não tivermos chegado ao fim da campanha, o gargalo é o nível atual
+        if (!globalMetrics.campaign_completed) {
+            globalMetrics.bottleneck_level = currentLevel != null ? currentLevel.level_id : 1;
+        }
+
+        string path = Path.Combine(Application.dataPath, "..", "metrics.json");
+        File.WriteAllText(path, JsonUtility.ToJson(globalMetrics, true));
+        Debug.Log($"[METRICS] metrics.json guardado com sucesso em: {path}");
+    }
+
     void QuitGame() {
         if (currentPlayer != null && userControl) {
             currentPlayer.wallet.totalCoins += totalCollectedGame;
@@ -546,22 +613,22 @@ public class GameManager : MonoBehaviour
         }
 
         // Se o jogo acabou e a campanha não foi concluída, foi porque bateu num gargalo (Game Over)
-        if (!globalMetrics.campaign_completed) {
+        if (!globalMetrics.campaign_completed && !userControl) {
             globalMetrics.bottleneck_level = currentLevel != null ? currentLevel.level_id : 1;
 
             // Adiciona o relatório do nível onde falhou
             globalMetrics.level_reports.Add(new LevelReport {
                 level_id = globalMetrics.bottleneck_level,
-                mode = this.currentMode,
                 total_rounds = currentLevelAttempts,
                 wins = 0,
                 win_rate = 0f, // 0 vitórias
                 avg_time_to_goal = currentLevelAttempts > 0 ? (totalPlayTime / currentLevelAttempts) : 0f,
                 stuck_events = stuckCount
             });
+        } else if (!userControl) {
+            // O Bot terminou a campanha
+            SaveMetrics();
         }
-
-        globalMetrics.is_human = userControl;
 
         // GRAVA O MEGA RELATÓRIO NO METRICS.JSON
         File.WriteAllText(Path.Combine(Application.dataPath, "..", "metrics.json"), JsonUtility.ToJson(globalMetrics, true));

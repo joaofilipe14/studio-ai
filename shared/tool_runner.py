@@ -273,6 +273,7 @@ def call_tool(
                     (os.path.join(assets_dir, "VoxelRenderer.cs"), "VoxelRenderer.cs"),
                     (os.path.join(assets_dir, "UIManager.cs"), "UIManager.cs"),
                     (os.path.join(assets_dir, "VoxelParticle.cs"), "VoxelParticle.cs"),
+                    (os.path.join(assets_dir, "TrailerDirector.cs"), "TrailerDirector.cs"),
                 ]
 
                 for dst, tmpl in preflight_files:
@@ -326,7 +327,8 @@ def call_tool(
             "/assets/voxelrenderer.cs": "VoxelRenderer.cs",
             "/assets/levelspawner.cs": "LevelSpawner.cs",
             "/assets/uimanager.cs": "UIManager.cs",
-            "/assets/voxelparticle.cs.cs": "VoxelParticle.cs.cs"
+            "/assets/voxelparticle.cs": "VoxelParticle.cs",
+            "/assets/trailerdirector.cs": "TrailerDirector.cs.cs"
         }
 
         for path_suffix, tmpl_name in templates_map.items():

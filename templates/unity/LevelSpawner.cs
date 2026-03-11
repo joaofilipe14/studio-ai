@@ -17,22 +17,26 @@ public static class LevelSpawner
     // ==========================================
     private static Material CreateTexturedMaterial(string textureName, Color fallbackColor) {
         Texture2D tex = Resources.Load<Texture2D>("Textures/" + textureName);
-        Shader safetyShader = Shader.Find("Unlit/Color");
-        if (safetyShader == null) safetyShader = Shader.Find("Legacy Shaders/VertexLit");
 
-        Material mat = new Material(safetyShader);
+        // 🚨 TRUQUE NINJA APLICADO AQUI TAMBÉM
+        GameObject tempCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Material mat = new Material(tempCube.GetComponent<Renderer>().sharedMaterial.shader);
+        GameObject.Destroy(tempCube);
+
         mat.color = fallbackColor;
-
         if (tex != null) {
             mat.mainTexture = tex;
         }
+
+        mat.SetFloat("_Glossiness", 0.5f);
         return mat;
     }
 
     public static Material CreateSimpleMaterial(Color color) {
-        Shader safetyShader = Shader.Find("Unlit/Color");
-        if (safetyShader == null) safetyShader = Shader.Find("Legacy Shaders/VertexLit");
-        Material mat = new Material(safetyShader);
+        GameObject tempCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Material mat = new Material(tempCube.GetComponent<Renderer>().sharedMaterial.shader);
+        GameObject.Destroy(tempCube);
+
         mat.color = color;
         return mat;
     }

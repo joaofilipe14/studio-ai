@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Importas os teus routers separados
-from server.routes import player, director, marketing, audio, art, performance
+from server.routes import player, director, hall_of_fame, marketing, audio, art, performance, dashboard
 
 app = FastAPI(title="Studio-AI Central API", version="2.0")
 
@@ -17,7 +17,9 @@ app.add_middleware(
 )
 
 # 🔌 "Ligas" os routers à tua API principal
+app.include_router(dashboard.router)
 app.include_router(performance.router)
+app.include_router(hall_of_fame.router)
 app.include_router(audio.router)
 app.include_router(art.router)
 app.include_router(marketing.router)

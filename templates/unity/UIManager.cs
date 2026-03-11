@@ -27,7 +27,7 @@ public class UIManager : MonoBehaviour {
     }
 
     void Start() {
-        if (Application.isBatchMode) {
+        if (Application.isBatchMode || GameManager.Instance.isTrailerMode) {
             GameManager.Instance.StartNewRun();
         } else {
             ShowTitleScreen();
@@ -45,18 +45,18 @@ public class UIManager : MonoBehaviour {
                 if (timeLeft <= 10f) timerText.color = Color.red;
                 else timerText.color = Color.white;
             }
-
             if (scoreText != null) {
-                if (GameManager.Instance.currentMode == "Collect")
-                    scoreText.text = $"Moedas: {GameManager.Instance.collectedInRound} / {GameManager.Instance.collectibles}";
-                else
-                    scoreText.text = "Objetivo: Encontrar a Meta!";
+                scoreText.text = $"Moedas: {GameManager.Instance.collectedInRound} / {GameManager.Instance.collectibles}";
             }
-
-            // 🚨 MOSTRA O NÚMERO DO NÍVEL
             if (levelText != null && GameManager.Instance.currentLevel != null) {
                 levelText.text = $"NÍVEL {GameManager.Instance.currentLevel.level_id}";
             }
+        }
+    }
+
+    public void HideUIForTrailer() {
+        if (canvasGO != null) {
+            canvasGO.SetActive(false);
         }
     }
 
@@ -135,13 +135,12 @@ public class UIManager : MonoBehaviour {
         UnlockMouse();
         currentState = UIState.Title;
         currentMenu = CreatePanel("TitleScreen", new Color(0.1f, 0.1f, 0.15f, 1f));
-
-        // 🚨 VAI LER O TEU SAVE PARA MOSTRAR OS STATUS NO MENU!
         int moedas = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.wallet.totalCoins : 0;
+        int cristais = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.wallet.timeCrystals : 0;
         int nivelAtual = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.currentCampaignLevel : 1;
 
         CreateText(currentMenu.transform, "STUDIO-AI: A SIMULAÇÃO", 80, new Vector2(0, 250), Color.cyan);
-        CreateText(currentMenu.transform, $"Progresso: Nível {nivelAtual} | Cofre: {moedas} Moedas", 35, new Vector2(0, 120), Color.yellow);
+        CreateText(currentMenu.transform, $"Nível {nivelAtual} | Moedas: {moedas} | Cristais de Tempo: {cristais} 💠", 35, new Vector2(0, 120), Color.yellow);
         CreateButton(currentMenu.transform, "INICIAR SIMULAÇÃO", new Vector2(0, -50), new Vector2(300, 60), () => {
             ShowHUD();
             GameManager.Instance.StartNewRun();
@@ -164,6 +163,7 @@ public class UIManager : MonoBehaviour {
         currentMenu = CreatePanel("VaultScreen", new Color(0.1f, 0.15f, 0.2f, 1f)); // Fundo azul escuro/néon
 
         int moedas = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.wallet.totalCoins : 0;
+        int cristais = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.wallet.timeCrystals : 0;
         int vidasMaximas = GameManager.Instance.currentPlayer != null ? GameManager.Instance.currentPlayer.stats.maxLives : 3;
 
         // 🛡️ Segurança para a lista de classes do Save
@@ -172,7 +172,7 @@ public class UIManager : MonoBehaviour {
         }
 
         CreateText(currentMenu.transform, "O COFRE", 60, new Vector2(0, 420), Color.yellow);
-        CreateText(currentMenu.transform, $"O teu saldo: {moedas} Moedas  |  Vidas Máximas: {vidasMaximas}", 30, new Vector2(0, 350), Color.cyan);
+        CreateText(currentMenu.transform, $"Moedas: {moedas}  |  Cristais: {cristais} 💠  |  Vidas Máx: {vidasMaximas}", 30, new Vector2(0, 350), Color.cyan);
 
         // ==========================================
         // GRELHA VISUAL (UPGRADES + CLASSES)

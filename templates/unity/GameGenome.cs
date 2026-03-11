@@ -50,7 +50,6 @@ public class LevelRules {
 [System.Serializable]
 public class LevelGenome {
     public int level_id;
-    public string mode;
     public int seed;
     public string theme;
     public LevelArena arena;
@@ -96,6 +95,7 @@ public class Roster {
 [System.Serializable]
 public class PlayerWallet {
     public int totalCoins;
+    public int timeCrystals;
 }
 
 [System.Serializable]

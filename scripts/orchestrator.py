@@ -140,10 +140,8 @@ def main():
     for rep in level_reports:
         played_level_id = rep.get("level_id")
         win_rate = rep.get("win_rate", 0.0)
-        played_mode = rep.get("mode", "PointToPoint")
-
         print(f"\n[bold blue]=======================================[/bold blue]")
-        print(f"[bold blue]🔍 A AVALIAR NÍVEL {played_level_id} (Modo: {played_mode} | Win Rate: {win_rate})[/bold blue]")
+        print(f"[bold blue]🔍 A AVALIAR NÍVEL {played_level_id} (Win Rate: {win_rate})[/bold blue]")
 
         current_level = None
         level_index = -1
@@ -179,7 +177,6 @@ def main():
 
                 # 🛡️ BLINDAGEM: Garante que a IA não altera dados essenciais
                 new_level["level_id"] = played_level_id
-                new_level["mode"] = current_level.get("mode", "PointToPoint")
                 new_level["theme"] = current_level.get("theme", "Cyberpunk Neon")
                 new_level["seed"] = random.randint(10000, 99999)
 
