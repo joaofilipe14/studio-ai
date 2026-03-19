@@ -1,6 +1,7 @@
 import os
 import shutil
 import yaml
+import json
 from rich import print
 
 def load_yaml(path: str):
@@ -52,7 +53,7 @@ def publish_game():
             shutil.copy2(s, d)
 
     # 2. Garantir que os ficheiros JSON estruturais vão junto com a nova prioridade
-    json_files = ["level_genome.json", "roster.json", "player_save.json"]
+    json_files = ["level_genome.json", "roster.json", "safe_room_items.json"]
     for j_file in json_files:
         sources = []
 
@@ -85,5 +86,37 @@ def publish_game():
         if not copied:
             print(f"[yellow]Aviso: Não encontrei o {j_file} em nenhum diretório de origem.[/yellow]")
 
+    clean_save = {
+        "playerName": "Player",
+        "currentCampaignLevel": 1,
+        "wallet": {
+            "totalCoins": 0,
+            "timeCrystals": 0
+        },
+        "loadout": {
+            "selectedClassID": "Explorer"
+        },
+        "unlockedClasses": [
+            "Explorer"
+        ],
+        "purchasedUpgrades": {
+            "startExtraTimeLvl": 0,
+            "morePowerUpsLvl": 0,
+            "permSpeedLvl": 0,
+            "trapReductionLvl": 0
+        },
+        "purchasedItems": [],
+        "stats": {
+            "totalTrapsHit": 0,
+            "totalWins": 0,
+            "currentLives": 3,
+            "maxLives": 3,
+            "basePowerUpCount": 3
+        }
+    }
+
+    clean_save_path = os.path.join(release_dir, "player_save.json")
+    with open(clean_save_path, "w", encoding="utf-8") as f:
+        json.dump(clean_save, f, indent=4)
     print(f"\n[bold green]🎉 Release de Produção concluída com sucesso![/bold green]")
     print(f"O teu jogo final está na pasta: {os.path.abspath(release_dir)}\n")

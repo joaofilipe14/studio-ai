@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Importas os teus routers separados
-from server.routes import player, director, hall_of_fame, marketing, audio, art, performance, dashboard
+from server.routes import player, director, hall_of_fame, marketing, audio, art, performance, dashboard, ui
 
 app = FastAPI(title="Studio-AI Central API", version="2.0")
 
@@ -25,6 +25,7 @@ app.include_router(art.router)
 app.include_router(marketing.router)
 app.include_router(player.router)
 app.include_router(director.router)
+app.include_router(ui.router)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

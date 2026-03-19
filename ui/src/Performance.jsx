@@ -1,169 +1,191 @@
 import React, { useState, useEffect } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, AreaChart, Area
 } from 'recharts';
 
 export default function Performance() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const fetchMetrics = () => {
+  // Estados dos Filtros
+  const [playerFilter, setPlayerFilter] = useState('all');
+  const [sessionFilter, setSessionFilter] = useState('all');
+
+  useEffect(() => {
     fetch('http://localhost:8000/performance/metrics')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('Falha ao carregar as métricas');
+        return res.json();
+      })
       .then(json => {
-        // O backend manda os mais recentes primeiro.
-        // Para o gráfico, queremos a ordem cronológica (da esquerda para a direita)
-        const reversedData = (json.data || []).reverse().map(d => ({
-          ...d,
-          // Convertemos para percentagem para o gráfico ficar bonito (0 a 100)
-          winRatePercent: d.win_rate * 100,
-          generation: `Gen ${d.id}`
-        }));
-        setData(reversedData);
+        const actualData = json.data ? json.data : json;
+        setData(actualData);
         setLoading(false);
       })
       .catch(err => {
-        console.error("Erro a carregar métricas:", err);
+        console.error(err);
+        setError(err.message);
         setLoading(false);
       });
-  };
-
-  useEffect(() => {
-    fetchMetrics();
-    const interval = setInterval(fetchMetrics, 10000);
-    return () => clearInterval(interval);
   }, []);
 
-  if (loading) return <div className="text-yellow-500 text-xl font-bold animate-pulse">A ligar ao Cérebro Central... 🧠</div>;
+  if (loading) return <div className="text-white p-4 flex justify-center items-center h-screen">A carregar telemetria...</div>;
+  if (error) return <div className="text-red-400 p-4">Erro: {error}</div>;
+  if (data.length === 0) return <div className="text-white p-4">Sem dados para exibir.</div>;
 
-  // Para a tabela, voltamos a inverter para ver os mais recentes no topo
-  const tableData = [...data].reverse();
+  const uniqueSessions = [...new Set(data.map(item => item.session_id))].filter(Boolean);
 
-  // Custom Tooltip para o Gráfico com o aspeto Cyberpunk
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const run = payload[0].payload;
-      return (
-        <div className="bg-gray-900 border border-gray-700 p-4 rounded-lg shadow-xl">
-          <p className="font-bold text-yellow-500 mb-2">{label} (Lvl {run.level_id})</p>
-          <p className="text-sm text-white">Jogador: {run.is_human ? '🧑 Humano' : '🤖 Bot'}</p>
-          <p className="text-sm text-green-400">Win Rate: {run.winRatePercent.toFixed(0)}%</p>
-          <p className="text-sm text-red-400">Inimigos: {run.enemy_count} (Vel: {run.enemy_speed.toFixed(1)})</p>
-        </div>
-      );
-    }
-    return null;
-  };
+  // Filtrar e Processar os dados para extrair as métricas extra do JSON (se existirem)
+  const filteredData = data.filter(row => {
+    let matchesPlayer = true;
+    if (playerFilter === 'human') matchesPlayer = row.is_human === true || row.is_human === 1 || row.is_human === "true";
+    if (playerFilter === 'bot') matchesPlayer = row.is_human === false || row.is_human === 0 || row.is_human === "false";
+
+    let matchesSession = true;
+    if (sessionFilter !== 'all') matchesSession = row.session_id === sessionFilter;
+
+    return matchesPlayer && matchesSession;
+  }).map(row => {
+    // Tenta extrair as métricas detalhadas do "raw_metrics" caso o backend envie
+    let lives_lost = 0;
+    let timeouts = 0;
+    let collected_coins = 0;
+    let powerups_used = 0;
+
+    try {
+      if (row.raw_metrics) {
+        const parsed = JSON.parse(row.raw_metrics);
+        const report = parsed.level_reports?.find(r => r.level_id === row.level_id) || {};
+        lives_lost = report.lives_lost || 0;
+        timeouts = report.timeouts || 0;
+        collected_coins = report.collected_coins || 0;
+        powerups_used = report.powerups_used || 0;
+      }
+    } catch (e) { console.warn("Erro ao ler raw_metrics da linha", row.id); }
+
+    return {
+      ...row,
+      win_rate_percent: Math.round(row.win_rate * 100), // Converte 0.5 para 50%
+      lives_lost,
+      timeouts,
+      collected_coins,
+      powerups_used
+    };
+  });
 
   return (
-    <div className="animate-fade-in text-white space-y-8">
-      <div className="flex justify-between items-center">
-        <h2 className="text-4xl font-bold text-yellow-500 tracking-wide">📈 MÉTRICAS DE EVOLUÇÃO</h2>
-        <button onClick={fetchMetrics} className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm transition">
-          🔄 Atualizar Agora
-        </button>
+    <div className="p-6 bg-gray-900 min-h-screen">
+      <div className="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+        <div>
+          <h2 className="text-3xl font-bold text-white tracking-tight">Evolução & Telemetria</h2>
+          <p className="text-gray-400 mt-1">Analisa o Flow e a Dificuldade do teu Level Design</p>
+        </div>
+
+        {/* Painel de Filtros */}
+        <div className="flex space-x-4">
+          <select
+            className="bg-gray-800 text-white p-2 rounded border border-gray-600 outline-none focus:border-blue-500 shadow-sm"
+            value={playerFilter}
+            onChange={e => setPlayerFilter(e.target.value)}
+          >
+            <option value="all">Todos os Jogadores</option>
+            <option value="human">Apenas Humano</option>
+            <option value="bot">Apenas Bot (IA)</option>
+          </select>
+
+          <select
+            className="bg-gray-800 text-white p-2 rounded border border-gray-600 outline-none focus:border-blue-500 shadow-sm"
+            value={sessionFilter}
+            onChange={e => setSessionFilter(e.target.value)}
+          >
+            <option value="all">Todas as Sessões</option>
+            {uniqueSessions.map(session => (
+              <option key={session} value={session}>{session}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {data.length === 0 ? (
-        <div className="bg-gray-800 p-8 rounded-xl border border-gray-700 text-center text-gray-400">
-          Ainda não há dados de simulação. Põe o Runner a trabalhar! 🏃‍♂️
-        </div>
+      {filteredData.length === 0 ? (
+        <div className="text-gray-400 py-10 text-center text-lg">Nenhum dado encontrado para os filtros selecionados.</div>
       ) : (
-        <>
-          {/* ========================================= */}
-          {/* ZONA DO GRÁFICO (RECHARTS)                */}
-          {/* ========================================= */}
-          <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl">
-            <h3 className="text-xl font-bold text-gray-300 mb-6">📉 Evolução do Equilíbrio (Win Rate vs Dificuldade)</h3>
-            <div className="h-80 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+          {/* GRÁFICO 1: Curva de Dificuldade (Velocidade vs Obstáculos) */}
+          <div className="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+            <h3 className="text-lg font-semibold text-white mb-4 text-center">1. Curva de Dificuldade</h3>
+            <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <LineChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="generation" stroke="#9CA3AF" fontSize={12} />
-
-                  {/* Eixo Esquerdo (Win Rate) */}
-                  <YAxis yAxisId="left" stroke="#4ADE80" domain={[0, 100]} label={{ value: 'Win Rate (%)', angle: -90, position: 'insideLeft', fill: '#4ADE80' }} />
-
-                  {/* Eixo Direito (Velocidade do Inimigo) */}
-                  <YAxis yAxisId="right" orientation="right" stroke="#F87171" domain={[0, 10]} label={{ value: 'Velocidade Inimigo', angle: 90, position: 'insideRight', fill: '#F87171' }} />
-
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ paddingTop: "20px" }} />
-
-                  {/* Linhas do Gráfico */}
-                  <Line yAxisId="left" type="monotone" dataKey="winRatePercent" name="Win Rate %" stroke="#4ADE80" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 8 }} />
-                  <Line yAxisId="right" type="monotone" dataKey="enemy_speed" name="Velocidade Inimigo" stroke="#F87171" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} />
-
-                  {/* Sweet Spot Reference Line (O ideal é entre 60% e 80%) */}
-                  <ReferenceLine yAxisId="left" y={60} stroke="#EAB308" strokeDasharray="3 3" opacity={0.5} />
-                  <ReferenceLine yAxisId="left" y={80} stroke="#EAB308" strokeDasharray="3 3" opacity={0.5} />
+                  <XAxis dataKey="level_id" stroke="#9CA3AF" />
+                  <YAxis yAxisId="left" stroke="#60A5FA" />
+                  <YAxis yAxisId="right" orientation="right" stroke="#F87171" />
+                  <Tooltip contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#fff' }} labelFormatter={(v) => `Nível ${v}`} />
+                  <Legend />
+                  <Line yAxisId="left" type="monotone" dataKey="enemy_speed" name="Vel. Inimigos" stroke="#60A5FA" strokeWidth={3} dot={{ r: 3 }} />
+                  <Line yAxisId="right" type="monotone" dataKey="obstacles" name="Obstáculos" stroke="#F87171" strokeWidth={3} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
-            <p className="text-xs text-center text-gray-500 mt-4">A zona ideal (Sweet Spot) para a IA é manter o Win Rate entre as linhas amarelas pontilhadas (60% - 80%).</p>
           </div>
 
-          {/* ========================================= */}
-          {/* TABELA DE HISTÓRICO (DADOS CRUS)          */}
-          {/* ========================================= */}
-          <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-xl overflow-hidden overflow-x-auto">
-            <table className="w-full text-left border-collapse whitespace-nowrap">
-              <thead>
-                <tr className="border-b border-gray-700 bg-gray-900/50 text-gray-400 uppercase text-xs tracking-wider">
-                  <th className="py-4 px-6 font-medium">Geração</th>
-                  <th className="py-4 px-6 font-medium text-center">Nível</th>
-                  <th className="py-4 px-6 font-medium text-center">Jogador</th>
-                  <th className="py-4 px-6 font-medium">Win Rate</th>
-                  <th className="py-4 px-6 font-medium">Dificuldade</th>
-                  <th className="py-4 px-6 font-medium">Relatório da IA</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700/50">
-                {tableData.map((entry) => {
-                  const winColor = entry.win_rate >= 0.8 ? 'bg-green-500' : entry.win_rate >= 0.4 ? 'bg-yellow-500' : 'bg-red-500';
-
-                  return (
-                    <tr key={entry.id} className="hover:bg-gray-700/30 transition duration-150">
-                      <td className="py-4 px-6 text-sm text-gray-400 font-mono">
-                        <span className="text-white font-bold mr-2">#{entry.id}</span>
-                        {entry.timestamp.replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, '$4:$5:$6')}
-                      </td>
-
-                      <td className="py-4 px-6 font-bold text-center">
-                        <span className="bg-blue-900/40 text-blue-400 px-3 py-1 rounded-full text-sm">Lvl {entry.level_id}</span>
-                      </td>
-
-                      <td className="py-4 px-6 text-center">
-                         <span className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider ${entry.is_human ? 'bg-green-900/60 text-green-400 border border-green-700' : 'bg-purple-900/60 text-purple-400 border border-purple-700'}`}>
-                           {entry.is_human ? 'Humano 👤' : 'Bot 🤖'}
-                         </span>
-                      </td>
-
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-24 h-2.5 bg-gray-900 rounded-full overflow-hidden shadow-inner">
-                            <div className={`h-full ${winColor}`} style={{ width: `${Math.max(entry.win_rate * 100, 5)}%` }}></div>
-                          </div>
-                          <span className="text-sm font-bold w-12 text-right">{(entry.win_rate * 100).toFixed(0)}%</span>
-                        </div>
-                      </td>
-
-                      <td className="py-4 px-6 text-sm text-gray-300">
-                        👾 <span className="text-red-400 font-bold">{entry.enemy_count}</span> |
-                        💨 <span className="text-yellow-400 font-bold">{entry.enemy_speed.toFixed(1)}</span> |
-                        🧱 <span className="text-orange-400 font-bold">{entry.obstacles}</span>
-                      </td>
-
-                      <td className="py-4 px-6 text-xs text-gray-400 max-w-xs truncate cursor-help" title={entry.report}>
-                        {entry.report}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          {/* GRÁFICO 2: Taxa de Sobrevivência (Win Rate) */}
+          <div className="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+            <h3 className="text-lg font-semibold text-white mb-4 text-center">2. Taxa de Sobrevivência (Win Rate %)</h3>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="level_id" stroke="#9CA3AF" />
+                  <YAxis domain={[0, 100]} stroke="#34D399" />
+                  <Tooltip contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#fff' }} labelFormatter={(v) => `Nível ${v}`} />
+                  <Legend />
+                  <Bar dataKey="win_rate_percent" name="Win Rate (%)" fill="#34D399" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        </>
+
+          {/* GRÁFICO 3: Causas de Morte (Vidas vs Timeouts) */}
+          <div className="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+            <h3 className="text-lg font-semibold text-white mb-4 text-center">3. Análise de Frustração (Mortes)</h3>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="level_id" stroke="#9CA3AF" />
+                  <YAxis stroke="#FBBF24" />
+                  <Tooltip contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#fff' }} labelFormatter={(v) => `Nível ${v}`} />
+                  <Legend />
+                  <Area type="monotone" dataKey="lives_lost" name="Apanhado por Inimigo" stackId="1" stroke="#EF4444" fill="#EF4444" opacity={0.8} />
+                  <Area type="monotone" dataKey="timeouts" name="Falta de Tempo" stackId="1" stroke="#F59E0B" fill="#F59E0B" opacity={0.8} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* GRÁFICO 4: O "Fun Meter" (Moedas e Power-Ups) */}
+          <div className="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+            <h3 className="text-lg font-semibold text-white mb-4 text-center">4. Medidor de Exploração (Fun Meter)</h3>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="level_id" stroke="#9CA3AF" />
+                  <YAxis stroke="#A855F7" />
+                  <Tooltip contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#fff' }} labelFormatter={(v) => `Nível ${v}`} />
+                  <Legend />
+                  <Bar dataKey="collected_coins" name="Moedas Apanhadas" fill="#FCD34D" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="powerups_used" name="Power-Ups Usados" fill="#A855F7" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+        </div>
       )}
     </div>
   );

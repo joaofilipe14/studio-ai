@@ -18,25 +18,26 @@ public static class LevelSpawner
     private static Material CreateTexturedMaterial(string textureName, Color fallbackColor) {
         Texture2D tex = Resources.Load<Texture2D>("Textures/" + textureName);
 
-        // 🚨 TRUQUE NINJA APLICADO AQUI TAMBÉM
-        GameObject tempCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        Material mat = new Material(tempCube.GetComponent<Renderer>().sharedMaterial.shader);
-        GameObject.Destroy(tempCube);
+        Shader standardShader = Shader.Find("Standard");
+        if (standardShader == null) standardShader = Shader.Find("Legacy Shaders/VertexLit");
+        Material mat = new Material(standardShader);
 
-        mat.color = fallbackColor;
         if (tex != null) {
+            mat.color = Color.white; // 🚨 Respeita a arte gerada pela IA!
             mat.mainTexture = tex;
+        } else {
+            mat.color = fallbackColor;
         }
 
-        mat.SetFloat("_Glossiness", 0.5f);
+        mat.SetFloat("_Glossiness", 0.6f);
+        // Também removemos a Emissão daqui. As luzes de ponto coladas às moedas já fazem o brilho!
         return mat;
     }
 
     public static Material CreateSimpleMaterial(Color color) {
-        GameObject tempCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        Material mat = new Material(tempCube.GetComponent<Renderer>().sharedMaterial.shader);
-        GameObject.Destroy(tempCube);
-
+        Shader standardShader = Shader.Find("Standard");
+        if (standardShader == null) standardShader = Shader.Find("Legacy Shaders/VertexLit");
+        Material mat = new Material(standardShader);
         mat.color = color;
         return mat;
     }

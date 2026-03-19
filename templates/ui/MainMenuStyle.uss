@@ -1,0 +1,116 @@
+/* Fundo Global que carrega a tua imagem da pasta Textures! */
+.bg-image {
+    flex-grow: 1;
+    background-image: resource("Textures/MenuBackground");
+    -unity-background-scale-mode: scale-and-crop;
+    justify-content: flex-start; /* Alinha o conteúdo à esquerda */
+}
+
+/* Película escura por cima da imagem para dar ambiente */
+.bg-overlay {
+    position: absolute;
+    left: 0; right: 0; top: 0; bottom: 0;
+    background-color: rgba(5, 5, 8, 0.40);
+}
+
+/* O Painel Principal (A magia acontece aqui) */
+.side-menu {
+    width: 450px;
+    height: 100%;
+    margin-left: 8%;
+    padding-top: 10%;
+    padding-left: 40px;
+    padding-right: 40px;
+    background-color: rgba(12, 12, 16, 0.85);
+    border-left-width: 4px;
+    border-left-color: rgb(0, 255, 255);
+    border-right-width: 1px;
+    border-right-color: rgba(255, 255, 255, 0.1);
+}
+
+.header-box {
+    margin-bottom: 30px;
+}
+
+.title-text {
+    font-size: 65px;
+    color: rgb(0, 255, 255);
+    -unity-font-style: bold;
+    letter-spacing: 5px;
+    margin: 0; padding: 0;
+}
+
+.subtitle-text {
+    font-size: 22px;
+    color: rgb(255, 204, 51);
+    -unity-font-style: bold; /* Adicionado Negrito */
+    letter-spacing: 2px;
+    margin-top: -5px;
+}
+
+/* Caixa das moedas com fundo um pouco mais visível */
+.stats-box {
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin-bottom: 25px;
+}
+
+/* 🚨 CORREÇÃO 3: Texto das moedas a Branco Puro e Negrito */
+.stats-text {
+    font-size: 18px;
+    color: rgb(255, 255, 255);
+    -unity-font-style: bold;
+    -unity-text-align: middle-left;
+}
+
+.divider {
+    height: 2px;
+    background-color: rgba(255, 255, 255, 0.15); /* Linha divisória mais clara */
+    margin-bottom: 20px;
+}
+
+/* 🚨 CORREÇÃO 4: Botões com Branco Puro e Negrito para leitura imediata */
+.btn {
+    height: 60px;
+    background-color: rgba(0, 0, 0, 0);
+    color: rgb(255, 255, 255);
+    font-size: 20px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-left;
+    padding-left: 15px;
+    border-width: 0;
+    border-left-width: 5px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    transition-duration: 0.2s;
+}
+
+.btn:hover {
+    color: white;
+    padding-left: 25px;
+}
+
+/* Cores Hover (Passar o rato) ligeiramente mais intensas (0.25 em vez de 0.15) */
+.cyberpunk-green { border-left-color: rgb(50, 255, 50); }
+.cyberpunk-green:hover { background-color: rgba(50, 255, 50, 0.25); }
+
+.cyberpunk-blue { border-left-color: rgb(50, 150, 255); }
+.cyberpunk-blue:hover { background-color: rgba(50, 150, 255, 0.25); }
+
+.cyberpunk-red { border-left-color: rgb(255, 50, 50); }
+.cyberpunk-red:hover { background-color: rgba(255, 50, 50, 0.25); }
+
+.cyberpunk-gray { border-left-color: rgb(150, 150, 150); }
+.cyberpunk-gray:hover { background-color: rgba(150, 150, 150, 0.25); }
+
+.footer {
+    position: absolute;
+    bottom: 30px;
+    left: 40px;
+}
+
+.version-text {
+    color: rgba(255, 255, 255, 0.6); /* Versão mais clara */
+    font-size: 14px;
+}

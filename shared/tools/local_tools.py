@@ -122,7 +122,7 @@ def env_info() -> ToolResult:
     except Exception as e:
         return ToolResult(False, f"env_info error: {e}")
 
-def run_game_simulation(exe_path: str, metrics_path: str, log_dir: str = "workspace/logs", timeout: int = 120) -> ToolResult:
+def run_game_simulation(exe_path: str, metrics_path: str, args=None, log_dir: str = "workspace/logs", timeout: int = 120) -> ToolResult:
     """
     Executa o jogo Unity em modo Headless, escuta os logs em tempo real,
     grava-os num ficheiro e lê o metrics.json.
@@ -138,7 +138,9 @@ def run_game_simulation(exe_path: str, metrics_path: str, log_dir: str = "worksp
         if os.path.exists(metrics_path):
             os.remove(metrics_path)
 
-        cmd = [exe_path, "-batchmode", "-nographics"]
+        cmd = [exe_path]
+        if args:
+            cmd.extend(args)
 
         print(f"\n[bold cyan]🚀 A lançar o Unity QA Bot...[/bold cyan]")
         print(f"[dim]A escutar a telemetria do motor em tempo real (Timeout: {timeout}s)...[/dim]\n")

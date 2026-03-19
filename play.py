@@ -1,146 +1,156 @@
-import json
 import os
-import subprocess
+import json
 import yaml
+import shutil
+import time
 from rich import print
 
+from shared.tool_runner import call_tool
 from services.game_director.logic import evolve_human_genome
 from shared.db.evolution_logger import init_db, log_evolution_to_db
-from scripts.publish import publish_game
 
 def load_yaml(path: str):
-    """Carrega as configurações do projeto."""
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Configuração não encontrada em {path}")
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
+def now_id():
+    return time.strftime("%Y%m%d-%H%M%S")
+
 def launch_manual_game():
-    # 0. CARREGAR CONFIGURAÇÃO
+    print("[cyan]A inicializar o Modo Jogador (Humano)...[/cyan]")
+
     config = load_yaml("config.yaml")
 
-    # Extrair caminhos do YAML com valores padrão de segurança
-    paths = config.get("paths", {})
-    logs_dir = paths.get("data", "workspace/data")
-    projects_dir = paths.get("projects", "workspace/projects")
-
-    db_path = os.path.join(logs_dir, "evolution.db")
+    # Init DB para guardar evolução Humana também
+    db_path = os.path.join(config["paths"]["data"], "evolution.db")
     init_db(db_path)
 
-    # Definimos a pasta de produção dentro da estrutura de workspace
-    releases_root = paths.get("releases", "workspace/releases")
-    release_dir = os.path.join(releases_root, "game_prod")
+    pn = "game_001"
+    projects_dir = config.get("paths", {}).get("projects", "workspace/projects")
+    proj_abs = os.path.abspath(os.path.join(projects_dir, pn))
+    exe_path = os.path.join(proj_abs, "Builds", "Game001.exe")
 
-    # 1. CAMINHOS DE PRODUÇÃO
-    level_path = os.path.join(release_dir, "level_genome.json")
-    save_path = os.path.join(release_dir, "player_save.json")
-    exe_path = os.path.join(release_dir, "Game001.exe")
-    metrics_path = os.path.join(release_dir, "metrics.json")
-
-    # 2. LÓGICA DE AUTO-PUBLISH
-    if not os.path.exists(exe_path) or not os.path.exists(level_path):
-        print(f"[yellow]Aviso: Jogo de produção não encontrado em {release_dir}.[/yellow]")
-        print("[cyan]A iniciar a montagem da Release de Produção automaticamente...[/cyan]")
-        publish_game()
-
-        if not os.path.exists(exe_path) or not os.path.exists(level_path):
-            print("[red]Erro crítico: Falha ao criar a Release. Garante que o Orquestrador já criou o projeto.[/red]")
-            return
-
-    # 3. CARREGA A CAMPANHA (Array JSON)
-    try:
-        with open(level_path, "r", encoding="utf-8") as f:
-            campaign = json.load(f)
-        if isinstance(campaign, dict):
-            campaign = [campaign]
-    except Exception as e:
-        print(f"[red]Erro ao ler o level_genome.json: {e}[/red]")
+    if not os.path.exists(exe_path):
+        print(f"[red]Erro: Build não encontrada em {exe_path}. Corre o bot primeiro para compilar o jogo![/red]")
         return
 
-    # 4. CARREGA O SAVE DO JOGADOR
-    player_name = "Humano"
-    current_campaign_level = 1
-    if os.path.exists(save_path):
-        try:
-            with open(save_path, "r", encoding="utf-8") as f:
-                save_data = json.load(f)
-                player_name = save_data.get("playerName", "Humano")
-                current_campaign_level = save_data.get("currentCampaignLevel", 1)
-        except Exception:
-            pass
+    # Caminhos VERDADEIROS para ler e escrever (Na Build)
+    campaign_path = os.path.join(proj_abs, "Builds", "level_genome.json")
+    metrics_path = os.path.join(proj_abs, "Builds", "metrics.json")
 
-    print(f"\n[bold cyan]🎮 Modo Manual ATIVADO, {player_name}![/bold cyan]")
-    print(f"[white]Estás no Nível {current_campaign_level} da Campanha.[/white]")
-    print("[white]A abrir o jogo... A IA vai analisar a tua performance.[/white]")
+    # 🚨 NOVO: Caminhos para o Roster e o Player Save
+    roster_path = os.path.join(proj_abs, "Builds", "roster.json")
+    player_save_path = os.path.join(proj_abs, "Builds", "player_save.json")
 
-    if os.path.exists(metrics_path):
-        os.remove(metrics_path)
+    # Caminhos dos Templates Originais
+    template_campaign_path = os.path.join("templates", "json", "level_genome.json")
+    template_roster_path = os.path.join("templates", "json", "roster.json")
+    template_safe_room_path = os.path.join("templates", "json", "safe_room_items.json")
+    safe_room_path = os.path.join(proj_abs, "Builds", "safe_room_items.json")
 
-    # 5. LANÇA O JOGO
-    try:
-        exe_dir = os.path.dirname(os.path.abspath(exe_path))
-        subprocess.run([os.path.abspath(exe_path)], cwd=exe_dir)
-    except Exception as e:
-        print(f"[red]Erro ao lançar o executável: {e}[/red]")
+    # Garante que os JSONs existem na Build antes de jogar
+    for tpl_path, target_path, name in [
+        (template_campaign_path, campaign_path, "Campanha"),
+        (template_roster_path, roster_path, "Roster"),
+        (template_safe_room_path, safe_room_path, "Safe Room")
+    ]:
+        if not os.path.exists(target_path):
+            print(f"[yellow]{name} não encontrado na Build. A copiar do Template...[/yellow]")
+            if os.path.exists(tpl_path):
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                shutil.copy2(tpl_path, target_path)
+                print(f"[green]{name} copiado do template com sucesso![/green]")
+
+    print("\n[bold green]A iniciar o Jogo! Mostra à IA o que vales...[/bold green]")
+    sim_res = call_tool("run_game_simulation", {
+        "exe_path": exe_path,
+        "metrics_path": metrics_path
+    }, config)
+
+    if not sim_res.get("ok"):
+        print(f"[red]Erro ou jogo fechado prematuramente: {sim_res.get('output')}[/red]")
         return
 
-    # 6. LÊ A TELEMETRIA PÓS-JOGO
-    print("\n[cyan]Jogo terminado. A ler telemetria da tua sessão...[/cyan]")
-    if not os.path.exists(metrics_path):
-        print("[yellow]Aviso: metrics.json não gerado. Nenhuma evolução aplicada.[/yellow]")
+    metrics_data = sim_res["data"]["metrics"]
+    level_reports = metrics_data.get("level_reports", [])
+
+    if not level_reports:
+        print("[yellow]Não foram geradas métricas (fechaste o jogo logo?). Nenhuma evolução aplicada.[/yellow]")
         return
 
-    try:
-        with open(metrics_path, "r", encoding="utf-8") as f:
-            metrics_data = json.load(f)
-    except Exception as e:
-        print(f"[red]Erro ao ler as métricas: {e}[/red]")
-        return
+    print(f"\n[cyan]Jogo terminado. Foram jogados {len(level_reports)} níveis. O Diretor IA vai analisar o teu desempenho...[/cyan]")
 
-    campaign_completed = metrics_data.get("campaign_completed", False)
-    played_level_id = metrics_data.get("bottleneck_level", 1) if not campaign_completed else 10
-    win_rate = 0.0
+    # Carrega a campanha atual
+    with open(campaign_path, "r", encoding="utf-8") as f:
+        campaign = json.load(f)
+    if isinstance(campaign, dict):
+        campaign = [campaign]
 
-    for rep in metrics_data.get("level_reports", []):
-        if rep.get("level_id") == played_level_id:
-            win_rate = rep.get("win_rate", 0.0)
-            break
+    # 🚨 NOVO: Carregar o Roster e o Player Save para a IA ler!
+    current_roster = {}
+    if os.path.exists(roster_path):
+        with open(roster_path, "r", encoding="utf-8") as f:
+            current_roster = json.load(f)
 
-    print(f"[white]Resultado: Nível {played_level_id} | Taxa de Sucesso: {win_rate*100}%[/white]")
+    current_player_save = {}
+    if os.path.exists(player_save_path):
+        with open(player_save_path, "r", encoding="utf-8") as f:
+            current_player_save = json.load(f)
 
-    # 7. EVOLUÇÃO HUMAN-CENTRIC
-    level_index = next((i for i, lvl in enumerate(campaign) if lvl.get("level_id") == played_level_id), -1)
+    current_session = f"Human_Run_{now_id()}"
 
-    if level_index == -1:
-        print(f"[red]Erro: Nível {played_level_id} não encontrado na campanha![/red]")
-        return
+    for rep in level_reports:
+        played_level_id = rep.get("level_id")
+        lives_lost = rep.get("lives_lost", 0)
 
-    if win_rate >= 1.0:
-        print(f"[bold green]🎉 Passaste o Nível {played_level_id}! Mantendo a dificuldade atual.[/bold green]")
-    else:
-        print(f"[cyan]A ajustar a dificuldade do Nível {played_level_id} para o teu perfil...[/cyan]")
+        print(f"\n[bold blue]=======================================[/bold blue]")
+        print(f"[bold blue]👤 A AVALIAR O TEU NÍVEL {played_level_id} (Mortes: {lives_lost})[/bold blue]")
 
-        # Chama a IA de evolução humana
-        evolved_data = evolve_human_genome(config, metrics_data, campaign[level_index])
+        level_index = -1
+        for i, level in enumerate(campaign):
+            if level.get("level_id") == played_level_id:
+                level_index = i
+                break
+
+        if level_index == -1:
+            continue
+
+        print(f"[magenta]O AI Director está a moldar o Nível {played_level_id} para a tua próxima tentativa...[/magenta]")
+
+        # 🚨 CORREÇÃO DO ERRO: Passar o player_save e o roster!
+        evolved_data = evolve_human_genome(config, metrics_data, campaign[level_index], current_player_save, current_roster)
 
         if evolved_data and "new_genome" in evolved_data:
-            new_genome = evolved_data["new_genome"]
-            new_genome["level_id"] = played_level_id
+            new_level = evolved_data["new_genome"]
+            new_level["level_id"] = played_level_id
+            new_level["theme"] = campaign[level_index].get("theme", "Cyberpunk Neon")
 
-            # Sincroniza a campanha
-            campaign[level_index] = new_genome
+            campaign[level_index] = new_level
+            report_text = evolved_data.get('report', 'Sem relatório.')
 
-            # Grava na Produção e sincroniza com o template de trabalho
-            with open(level_path, "w", encoding="utf-8") as f:
-                json.dump(campaign, f, indent=2)
+            log_evolution_to_db(
+                db_path=db_path,
+                metrics=metrics_data,
+                new_genome=new_level,
+                report=report_text,
+                is_human=True,
+                session_id=current_session,
+                current_roster=current_roster
+            )
+            print(f"[bold green]✅ Nível {played_level_id} Evoluído![/bold green]")
+        else:
+            print(f"[red]Erro da IA ao gerar genoma.[/red]")
 
-            # Sincroniza também com a memória central
-            with open("templates/json/level_genome.json", "w", encoding="utf-8") as f:
-                json.dump(campaign, f, indent=2)
+    # Gravar a Campanha Evoluída
+    with open(campaign_path, "w", encoding="utf-8") as f:
+        json.dump(campaign, f, indent=2)
 
-            report_text = evolved_data.get("report", "Evolução manual aplicada.")
-            log_evolution_to_db(db_path, metrics_data, new_genome, report_text, True)
+    # Sincronizar de volta para o projeto
+    root_campaign_path = os.path.join(proj_abs, "level_genome.json")
+    if os.path.exists(campaign_path):
+        shutil.copy2(campaign_path, root_campaign_path)
 
-            print(f"[bold green]✅ Dificuldade ajustada. Próxima tentativa será mais justa![/bold green]")
+    print("\n[bold cyan]💾 Campanha atualizada e guardada! O jogo adaptou-se a ti.[/bold cyan]")
+
 if __name__ == "__main__":
     launch_manual_game()

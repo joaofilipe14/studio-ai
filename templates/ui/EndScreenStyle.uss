@@ -1,0 +1,67 @@
+.bg-overlay {
+    flex-grow: 1;
+    background-color: rgba(5, 5, 8, 0.85); /* Fundo escuro para destacar o painel */
+    justify-content: center;
+    align-items: center;
+}
+
+.end-panel {
+    width: 600px;
+    background-color: rgba(12, 12, 16, 0.95);
+    border-top-width: 6px; /* Linha grossa no topo que vai mudar de cor via C# */
+    border-top-color: rgb(255, 255, 255);
+    padding: 50px;
+    border-radius: 12px;
+    align-items: center;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+}
+
+.title-text {
+    font-size: 60px;
+    -unity-font-style: bold;
+    color: white;
+    margin-bottom: 20px;
+    letter-spacing: 5px;
+    -unity-text-align: middle-center;
+}
+
+.desc-text {
+    font-size: 24px;
+    color: rgb(200, 200, 200);
+    -unity-text-align: middle-center;
+    white-space: normal;
+    margin-bottom: 50px;
+}
+
+.btn {
+    width: 350px;
+    height: 65px;
+    font-size: 22px;
+    -unity-font-style: bold;
+    color: white;
+    background-color: rgba(30, 30, 35, 0.9);
+    border-width: 0;
+    border-bottom-width: 4px;
+    border-bottom-color: rgb(255, 255, 255);
+    transition-duration: 0.2s;
+    border-radius: 8px;
+}
+
+.btn:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    scale: 1.05; /* Efeito de zoom suave ao passar o rato! */
+}
+.btn-secondary {
+    margin-top: 15px; /* Dá um espacinho em relação ao botão de cima */
+    background-color: rgba(20, 20, 20, 0.6);
+    border-bottom-color: rgb(100, 100, 100);
+    color: rgb(180, 180, 180);
+    font-size: 18px; /* Letras um bocadinho mais pequenas */
+    height: 55px; /* Botão ligeiramente mais fino */
+}
+
+.btn-secondary:hover {
+    color: white;
+    border-bottom-color: rgb(255, 50, 50); /* Fica vermelho ao passar o rato! */
+    background-color: rgba(255, 50, 50, 0.1);
+}

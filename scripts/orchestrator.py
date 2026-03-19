@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import json
 import os
 import time
 import random
 import yaml
+import shutil
 from rich import print
 
+from shared.db.economy_logger import log_economy_snapshot, init_economy_db
 from shared.tool_runner import call_tool
 from shared.db.evolution_logger import init_db, log_evolution_to_db
-from services.game_director.logic import evolve_bot_genome
-# Importamos a personalidade BOT do nosso novo Cérebro Central
+from services.game_director.logic import evolve_bot_genome, evolve_economy
 
 
 def load_yaml(path: str):
@@ -31,17 +34,13 @@ def save_state(path: str, state):
 def now_id():
     return time.strftime("%Y%m%d-%H%M%S")
 
-def log_jsonl(log_path: str, obj):
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(obj, ensure_ascii=False) + "\n")
-
 
 def main():
     config = load_yaml("config.yaml")
     state_path = config["paths"]["state"]
     db_path = os.path.join(config["paths"]["data"], "evolution.db")
     init_db(db_path)
+    init_economy_db(db_path)
 
     state = load_state(state_path)
 
@@ -50,26 +49,29 @@ def main():
     # 1. DEFINIÇÃO DE CAMINHOS
     pn = "game_001"
 
-    # 🎯 Lemos o caminho dos projetos diretamente do YAML (se não existir, usa "workspace/projects")
     projects_dir = config.get("paths", {}).get("projects", "workspace/projects")
     proj_abs = os.path.abspath(os.path.join(projects_dir, pn))
 
     exe_path = os.path.join(proj_abs, "Builds", "Game001.exe")
     metrics_path = os.path.join(proj_abs, "Builds", "metrics.json")
 
-    # O Caminho VERDADEIRO para a Campanha (A que o Unity lê)
+    # Os Caminhos VERDADEIROS para a IA ler (Na Build)
     campaign_path = os.path.join(proj_abs, "Builds", "level_genome.json")
+    roster_path = os.path.join(proj_abs, "Builds", "roster.json")
+    safe_room_path = os.path.join(proj_abs, "Builds", "safe_room_items.json")
+    player_save_path = os.path.join(proj_abs, "Builds", "player_save.json") # 🚨 NOVO: Caminho do Save
 
-    # Caminho do Template Original
+    # Caminhos dos Templates Originais
     template_campaign_path = os.path.join("templates", "json", "level_genome.json")
+    template_roster_path = os.path.join("templates", "json", "roster.json")
+    template_safe_room_path = os.path.join("templates", "json", "safe_room_items.json")
 
-    # Variável de contexto para as tools saberem onde trabalhar
     tool_context = {
         "project_name": pn,
         "project_path": proj_abs
     }
 
-    # 2. BYPASS / SETUP DO PROJETO E BUILD (ESTÁTICO)
+    # 2. SETUP DO PROJETO E BUILD (ESTÁTICO)
     if not os.path.exists(exe_path):
         print(f"[yellow]Build não encontrada em {exe_path}. A iniciar Setup Inicial...[/yellow]")
 
@@ -96,22 +98,26 @@ def main():
         print("[green]Projeto e Build encontrados! A saltar fase de compilação.[/green]")
 
 
-    # 2.5 GARANTIR QUE A CAMPANHA EXISTE NA BUILD ANTES DE JOGAR
-    if not os.path.exists(campaign_path):
-        print(f"[yellow]Campanha não encontrada em {campaign_path}. A copiar do Template...[/yellow]")
-        if os.path.exists(template_campaign_path):
-            os.makedirs(os.path.dirname(campaign_path), exist_ok=True)
-            import shutil
-            shutil.copy2(template_campaign_path, campaign_path)
-            print("[green]Campanha base copiada do template com sucesso![/green]")
-        else:
-            print(f"[red]ERRO CRÍTICO: Template da campanha também não encontrado em {template_campaign_path}![/red]")
-            return
+    # 2.5 GARANTIR QUE OS JSONS EXISTEM NA BUILD ANTES DE JOGAR
+    for tpl_path, target_path, name in [
+        (template_campaign_path, campaign_path, "Campanha"),
+        (template_roster_path, roster_path, "Roster"),
+        (template_safe_room_path, safe_room_path, "Safe Room")
+    ]:
+        if not os.path.exists(target_path):
+            print(f"[yellow]{name} não encontrado na Build. A copiar do Template...[/yellow]")
+            if os.path.exists(tpl_path):
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                shutil.copy2(tpl_path, target_path)
+                print(f"[green]{name} copiado do template com sucesso![/green]")
+            else:
+                print(f"[red]Aviso: Template de {name} não encontrado em {tpl_path}![/red]")
 
     # 3. FASE DE SIMULAÇÃO
     print("\n[green]A iniciar Simulação QA (Bot)...[/green]")
 
-    sim_res = call_tool("run_game_simulation", {"exe_path": exe_path, "metrics_path": metrics_path}, config)
+    sim_res = call_tool("run_game_simulation", {"exe_path": exe_path, "metrics_path": metrics_path,
+                                                "args": ["-botMode"]}, config)
 
     if not sim_res.get("ok"):
         print(f"[red]Erro na simulação: {sim_res.get('output')}[/red]")
@@ -124,15 +130,29 @@ def main():
 
     print(f"[cyan]Simulação concluída. Foram jogados {len(level_reports)} níveis. A iniciar análise profunda...[/cyan]")
 
-    # 4. LER A CAMPANHA INTEIRA (O Array JSON)
-    if os.path.exists(campaign_path):
-        with open(campaign_path, "r", encoding="utf-8") as f:
-            campaign = json.load(f)
-        if isinstance(campaign, dict):
-            campaign = [campaign]
-    else:
-        print(f"[red]ERRO: O ficheiro {campaign_path} não foi encontrado na raiz![/red]")
-        return
+    # 4. CARREGAR OS DADOS ATUAIS PARA MEMÓRIA (DA BUILD!)
+    with open(campaign_path, "r", encoding="utf-8") as f:
+        campaign = json.load(f)
+    if isinstance(campaign, dict):
+        campaign = [campaign]
+
+    current_roster = None
+    if os.path.exists(roster_path):
+        with open(roster_path, "r", encoding="utf-8") as f:
+            current_roster = json.load(f)
+
+    safe_room_data = None
+    if os.path.exists(safe_room_path):
+        with open(safe_room_path, "r", encoding="utf-8") as f:
+            safe_room_data = json.load(f)
+
+    # 🚨 LER O PLAYER SAVE DA BUILD!
+    current_player_save = {}
+    if os.path.exists(player_save_path):
+        with open(player_save_path, "r", encoding="utf-8") as f:
+            current_player_save = json.load(f)
+
+    current_session = f"Bot_Run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     # =========================================================
     # 5. PROCESSAR TODOS OS NÍVEIS JOGADOS NESTA RUN!
@@ -152,42 +172,37 @@ def main():
                 break
 
         if current_level is None:
-            print(f"[red]Aviso: Nível {played_level_id} não encontrado na campanha. A ignorar...[/red]")
             continue
 
-        # 6. VERIFICAÇÃO DE EQUILÍBRIO (Sweet Spot)
-        if 0.6 <= win_rate <= 0.8:
-            # O nível está bom! Não chamamos o Ollama para o estragar.
-            # Apenas gravamos na BD que ele está porreiro e mudamos a Semente para variar o labirinto.
-            log_evolution_to_db(db_path, metrics_data, current_level, "Nível perfeitamente equilibrado (Sweet Spot). Mantido sem mutações.", is_human_run)
+        print(f"[magenta]A pedir ao AI Director para EVOLUIR o Nível {played_level_id}...[/magenta]")
 
-            current_level["seed"] = random.randint(10000, 99999)
-            campaign[level_index] = current_level
+        # 🚨 PASSAMOS O PLAYER SAVE E O ROSTER PARA A IA LER!
+        evolved_data = evolve_bot_genome(config, metrics_data, current_level, current_player_save, current_roster)
 
-            print(f"[bold yellow]⚡ Nível {played_level_id} equilibrado! Mantido sem mutações de dificuldade.[/bold yellow]")
+        if evolved_data and "new_genome" in evolved_data:
+            new_level = evolved_data["new_genome"]
 
-        # 7. EVOLUÇÃO (Nível desequilibrado: Muito Fácil ou Muito Difícil)
+            # 🛡️ BLINDAGEM: Garante que a IA não altera dados essenciais
+            new_level["level_id"] = played_level_id
+            new_level["theme"] = current_level.get("theme", "Cyberpunk Neon")
+            new_level["seed"] = random.randint(10000, 99999)
+
+            campaign[level_index] = new_level
+            report_text = evolved_data.get('report', 'Sem relatório.')
+
+            log_evolution_to_db(
+                db_path=db_path,
+                metrics=metrics_data,
+                new_genome=new_level,
+                report=report_text,
+                is_human=is_human_run,
+                session_id=current_session,
+                current_roster=current_roster
+            )
+
+            print(f"[bold green]✅ Nível {played_level_id} Evoluído com sucesso![/bold green]")
         else:
-            print(f"[magenta]A pedir ao AI Director para EVOLUIR o Nível {played_level_id}...[/magenta]")
-
-            evolved_data = evolve_bot_genome(config, metrics_data, current_level)
-
-            if evolved_data and "new_genome" in evolved_data:
-                new_level = evolved_data["new_genome"]
-
-                # 🛡️ BLINDAGEM: Garante que a IA não altera dados essenciais
-                new_level["level_id"] = played_level_id
-                new_level["theme"] = current_level.get("theme", "Cyberpunk Neon")
-                new_level["seed"] = random.randint(10000, 99999)
-
-                campaign[level_index] = new_level
-                report_text = evolved_data.get('report', 'Sem relatório.')
-
-                log_evolution_to_db(db_path, metrics_data, new_level, report_text, is_human_run)
-
-                print(f"[bold green]✅ Nível {played_level_id} Evoluído com sucesso![/bold green]")
-            else:
-                print(f"[red]Erro da IA ao gerar genoma para o Nível {played_level_id}.[/red]")
+            print(f"[red]Erro da IA ao gerar genoma para o Nível {played_level_id}.[/red]")
 
     # =========================================================
     # 8. GRAVAR A CAMPANHA COMPLETA COM AS MUTAÇÕES DESTA RUN
@@ -197,22 +212,75 @@ def main():
     print(f"\n[bold cyan]💾 Campanha atualizada e guardada! Pronta para a próxima simulação.[/bold cyan]")
 
     # =========================================================
-    # 9. O VERDADEIRO HALL OF FAME (CAMPANHA COMPLETA VENCEDORA)
+    # 9. AVALIAÇÃO DA ECONOMIA (O GESTOR FINANCEIRO IA)
+    # =========================================================
+    print("\n[magenta]A chamar o Diretor de Economia para ajustar o Mercado...[/magenta]")
+
+    if current_player_save and current_roster and safe_room_data:
+        economy_result = evolve_economy(config, metrics_data, current_player_save, current_roster, safe_room_data)
+
+        # Grava o Roster (Cofre)
+        current_roster = economy_result.get("new_roster", current_roster)
+        with open(roster_path, "w", encoding="utf-8") as f:
+            json.dump(current_roster, f, indent=2)
+
+        # Grava o Catálogo (Safe Room)
+        safe_room_data = economy_result.get("new_safe_room", safe_room_data)
+        with open(safe_room_path, "w", encoding="utf-8") as f:
+            json.dump(safe_room_data, f, indent=2)
+
+        print(f"[bold green]📈 {economy_result.get('report', 'Inflação ajustada!')}[/bold green]")
+
+        # Tira uma "Fotografia" aos preços atuais
+        prices_snapshot = {}
+        for item in current_roster.get("items", []): prices_snapshot[item["id"]] = item["cost"]
+        for item in safe_room_data.get("safeRoomItems", []): prices_snapshot[item["id"]] = item["cost"]
+
+        player_coins = current_player_save.get("wallet", {}).get("totalCoins", 0)
+        player_crystals = current_player_save.get("wallet", {}).get("timeCrystals", 0)
+
+        # 🚨 MAGIA DO SQLITE AQUI: Guarda tudo de forma limpa e estruturada na DB!
+        log_economy_snapshot(db_path, current_session, player_coins, player_crystals, prices_snapshot)
+
+        print(f"[cyan]📊 Histórico da inflação guardado na Base de Dados (tabela 'economy_history')![/cyan]")
+    else:
+        print("[yellow]Ficheiros de Save ou Lojas em falta. A saltar o ajuste económico.[/yellow]")
+
+    # =========================================================
+    # 10. O VERDADEIRO HALL OF FAME (CAMPANHA COMPLETA VENCEDORA)
     # =========================================================
     if campaign_completed:
-        # 🎯 Lemos o caminho do Hall of Fame diretamente do YAML
         hall_of_fame_dir = config.get("paths", {}).get("hall_of_fame", "workspace/hall_of_fame")
-        os.makedirs(hall_of_fame_dir, exist_ok=True)
-
-        # Guarda a Campanha inteira (o array de 10 níveis)
-        hof_filename = os.path.join(hall_of_fame_dir, f"campaign_masterpiece_{now_id()}.json")
+        target_dir = os.path.join(proj_abs, hall_of_fame_dir)
+        os.makedirs(target_dir, exist_ok=True)
+        hof_filename = os.path.join(proj_abs, hall_of_fame_dir, f"campaign_masterpiece_{now_id()}.json")
         with open(hof_filename, "w", encoding="utf-8") as hof_file:
             json.dump(campaign, hof_file, indent=2)
 
-        print(f"\n[bold yellow]🏆 THE TRUE HALL OF FAME! O Bot conseguiu vencer o Nível 10![/bold yellow]")
-        print(f"[bold yellow]👑 Campanha de Ouro guardada em: {hof_filename}[/bold yellow]")
+        # 🚨 NOVO: Copiar também o Roster e a Safe Room para o Hall of Fame!
+        shutil.copy2(roster_path, os.path.join(proj_abs, hall_of_fame_dir, "roster.json"))
+        shutil.copy2(safe_room_path, os.path.join(proj_abs, hall_of_fame_dir, "safe_room_items.json"))
 
-    # Gravação de estado final
+        print(f"\n[bold yellow]🏆 THE TRUE HALL OF FAME! O Bot conseguiu vencer o Nível 10![/bold yellow]")
+        print(f"[bold yellow]👑 Campanha e Economia de Ouro guardadas na pasta Hall of Fame![/bold yellow]")
+
     state["last_result"] = "ok"
     state["history"].append({"ts": now_id(), "result": "ok"})
     save_state(state_path, state)
+
+    # =========================================================
+    # 11. SINCRONIZAÇÃO COM A RAIZ DO PROJETO (VISIBILIDADE)
+    # =========================================================
+    print("\n[cyan]🔄 A sincronizar os ficheiros evoluídos com a raiz do projeto...[/cyan]")
+
+    root_campaign_path = os.path.join(proj_abs, "level_genome.json")
+    root_roster_path = os.path.join(proj_abs, "roster.json")
+    root_safe_room_path = os.path.join(proj_abs, "safe_room_items.json")
+    root_player_save_path = os.path.join(proj_abs, "player_save.json")
+
+    if os.path.exists(campaign_path): shutil.copy2(campaign_path, root_campaign_path)
+    if os.path.exists(roster_path): shutil.copy2(roster_path, root_roster_path)
+    if os.path.exists(safe_room_path): shutil.copy2(safe_room_path, root_safe_room_path)
+    if os.path.exists(player_save_path): shutil.copy2(player_save_path, root_player_save_path)
+
+    print("[bold green]👀 Ficheiros atualizados na raiz do projeto! Já podes abrir os JSONs e confirmar as mutações.[/bold green]")

@@ -1,7 +1,7 @@
 import json
 import os
 from shared.ollama_client import chat
-from shared.db.evolution_logger import get_evolution_history
+from shared.db.evolution_logger import get_all_metrics_for_api
 
 # Sobe dois níveis para chegar à raiz do projeto e entrar em 'memory'
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -9,7 +9,7 @@ MARKETING_FILE = os.path.join(BASE_DIR, "memory", "marketing_plan.json")
 
 def generate_weekly_marketing_plan(db_path, theme):
     """Consulta a BD e gera 7 posts baseados na performance real."""
-    df = get_evolution_history(db_path)
+    df = get_all_metrics_for_api(db_path)
     last_runs = df.head(3).to_dict(orient='records') if not df.empty else "Sem dados"
 
     dias = ["Segunda", "Terça (Imagem)", "Quarta", "Quinta", "Sexta (Vídeo)", "Sábado", "Domingo"]

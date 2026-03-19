@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+
+    <Style src="HUDStyle.uss" />
+
+    <Style src="VaultStyle.uss" />
+
+    <ui:VisualElement class="hud-container">
+
+        <ui:VisualElement class="top-bar">
+            <ui:VisualElement class="hud-box box-lives">
+                <ui:VisualElement class="icon icon-heart" />
+                <ui:Label name="txt-lives" text="3" class="hud-text" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="hud-box box-timer">
+                <ui:Label name="txt-timer" text="Tempo: 00.0s" class="hud-text text-cyan" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="hud-box box-score">
+                <ui:Label name="txt-score" text="0" class="hud-text text-yellow" />
+                <ui:VisualElement class="icon icon-coin" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="hud-box box-timer">
+                <ui:Label name="txt-level" text="Nível 1" class="hud-text" style="margin-right: 20px; color: rgb(255, 100, 255);" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="active-buffs-container" class="buffs-container" />
+
+    </ui:VisualElement>
+</ui:UXML>

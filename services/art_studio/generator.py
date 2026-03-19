@@ -9,23 +9,30 @@ from rich import print
 
 SD_API_URL = "http://127.0.0.1:7860/sdapi/v1/txt2img"
 
-# Sobe dois níveis para chegar à raiz do projeto
+# Caminhos
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 TEMPLATE_SPRITES = os.path.join(BASE_DIR, "templates", "sprites")
 TEMPLATE_TEXTURES = os.path.join(BASE_DIR, "templates", "textures")
-ROSTER_PATH = os.path.join(BASE_DIR, "roster.json") # Agora o Roster está na raiz
+ROSTER_PATH = os.path.join(BASE_DIR, "templates", "json", "roster.json")
+RECIPES_PATH = os.path.join(BASE_DIR, "memory", "assets_recipes.json")
 
-ASSET_RECIPES = {
-    "Enemy": {"file": "EnemySprite.png", "is_sprite": True, "prompt": "pixel art sprite, {theme} scary enemy monster, top-down perspective, full body, isolated on pure white background, flat colors"},
-    "Floor": {"file": "FloorTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} floor tile, strictly top-down view, seamless pattern, flat 2d surface, no perspective"},
-    "Wall": {"file": "ObstacleTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} solid metal wall crate, strictly top-down view, flat 2d, no perspective"},
-    "Goal": {"file": "GoalTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} glowing exit teleport pad, strictly top-down view, flat 2d, centered"},
-    "Collectible": {"file": "CollectibleTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} shiny valuable coin item, strictly top-down view, centered, isolated on solid background"},
-    "Trap": {"file": "TrapTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} dangerous floor spikes trap, strictly top-down view, flat 2d, no perspective"},
-    "PowerUp": {"file": "PowerUpTexture.png", "is_sprite": False, "prompt": "pixel art texture, {theme} glowing energy battery potion, strictly top-down view, centered, flat 2d"}
-}
+# O dicionário global que vai guardar TUDO
+ASSET_RECIPES = {}
 
-def load_character_recipes():
+def load_all_recipes():
+    global ASSET_RECIPES
+    ASSET_RECIPES.clear()
+
+    # 1. Carregar as texturas e itens base
+    if os.path.exists(RECIPES_PATH):
+        try:
+            with open(RECIPES_PATH, "r", encoding="utf-8") as f:
+                base_recipes = json.load(f)
+                ASSET_RECIPES.update(base_recipes)
+        except Exception as e:
+            print(f"[red]Erro ao ler {RECIPES_PATH}: {e}[/red]")
+
+    # 2. Carregar as personagens e injetar no mesmo dicionário
     if os.path.exists(ROSTER_PATH):
         try:
             with open(ROSTER_PATH, "r", encoding="utf-8") as f:
@@ -35,8 +42,13 @@ def load_character_recipes():
                 char_id = char_class.get("id", "Unknown")
                 char_name = char_class.get("name", "Hero")
                 char_desc = char_class.get("description", "main character")
-                sprite_filename = f"{char_class.get('spriteName', char_id + 'Sprite')}.png"
 
+                # Garante que o ficheiro termina em .png
+                sprite_filename = char_class.get("spriteName", f"{char_id}Sprite")
+                if not sprite_filename.endswith(".png"):
+                    sprite_filename += ".png"
+
+                # Cria o prompt injetando o nome e descrição do JSON!
                 prompt = f"pixel art sprite, {{theme}} {char_name}, {char_desc}, top-down perspective, full body, isolated on pure white background, flat colors"
 
                 ASSET_RECIPES[f"Class: {char_id}"] = {
@@ -45,11 +57,9 @@ def load_character_recipes():
                     "prompt": prompt
                 }
         except Exception as e:
-            print(f"[red]Erro ao ler o roster.json: {e}[/red]")
-    else:
-        ASSET_RECIPES["Player"] = {"file": "PlayerSprite.png", "is_sprite": True, "prompt": "pixel art sprite, {theme} main hero character, top-down perspective, full body, isolated on pure white background, flat colors"}
+            print(f"[red]Erro ao ler {ROSTER_PATH}: {e}[/red]")
 
-load_character_recipes()
+load_all_recipes()
 
 def check_apis():
     try:
@@ -67,8 +77,9 @@ def save_and_process_image(img_b64, output_path, should_remove_bg=False):
 
     image.save(output_path, format="PNG")
 
-def generate_art_asset(prompt, output_path, is_sprite=True):
-    negative_prompt = "photorealistic, realistic, 3d, isometric, perspective, landscape, scenery, shadows, gradients, messy, ugly, complex background, text, watermark"
+def generate_art_asset(prompt, output_path, is_sprite=True, negative_prompt=None):
+    if not negative_prompt:
+        negative_prompt = "photorealistic, realistic, 3d, isometric, perspective, landscape, scenery, shadows, gradients, messy, ugly, complex background, text, watermark"
 
     sd_payload = {
         "prompt": f"{prompt} <lora:128pixelartXL:1>",
@@ -95,11 +106,17 @@ def generate_single_asset(theme: str, asset_key: str):
     check_apis()
     recipe = ASSET_RECIPES[asset_key]
     prompt = recipe["prompt"].format(theme=theme)
+    neg_prompt = recipe.get("negative_prompt")
+
+    print(f"[green]Prompt: {prompt}[/green]")
+    if neg_prompt:
+        print(f"[yellow]Negative Prompt: {neg_prompt}[/yellow]")
 
     out_dir = TEMPLATE_SPRITES if recipe["is_sprite"] else TEMPLATE_TEXTURES
     out_path = os.path.join(out_dir, recipe["file"])
 
-    generate_art_asset(prompt, out_path, is_sprite=recipe["is_sprite"])
+    generate_art_asset(prompt, out_path, is_sprite=recipe["is_sprite"], negative_prompt=neg_prompt)
+
     return out_path
 
 def generate_full_theme(genome: dict):

@@ -5,29 +5,44 @@ import MarketingHub from './Marketing';
 import AudioStudio from './Audio';
 import ArtStudio from './Art';
 import Performance from './Performance';
-// Não te esqueças de importar também o Hall of Fame se já o tiveres criado!
 import HallOfFame from './HallOfFame';
+import UIPreview from './UIPreview';
 
 export default function App() {
-  // 🎯 1. AQUI: Começa a app na aba 'home' em vez de 'marketing'
   const [activePage, setActivePage] = useState('home');
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
-  // 🎯 2. AQUI: Adiciona os botões da Home e do Hall of Fame ao menu
   const menuItems = [
-    { id: 'home', label: '🏠 Dashboard' },              // <--- NOVO
+    { id: 'home', label: '🏠 Dashboard' },
     { id: 'performance', label: '📈 Performance' },
-    { id: 'hall', label: '🏆 Hall of Fame' },           // <--- NOVO
+    { id: 'hall', label: '🏆 Hall of Fame' },
     { id: 'art', label: '🎨 Estúdio de Arte' },
     { id: 'audio', label: '🎵 Sonoplastia' },
     { id: 'marketing', label: '🚀 Marketing Hub' },
-    { id: 'vault', label: '🏦 O Cofre' }
+    { id: 'vault', label: '🏦 O Cofre' },
+    { id: 'uipreview', label: '📺 Simulador UI' }
   ];
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white font-sans overflow-hidden">
+    <div className="flex h-screen bg-gray-900 text-white font-sans overflow-hidden relative">
+
+      {/* 🚨 3. O BALÃO TOAST RENDERIZADO GLOBALMENTE (Por cima de tudo) */}
+      {toast && (
+        <div className={`fixed top-6 right-6 px-6 py-4 rounded-xl shadow-2xl border-2 z-50 text-white font-bold transition-all transform animate-fade-in ${
+            toast.type === "success"
+                ? "bg-green-900 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)]"
+                : "bg-red-900 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]"
+        }`}>
+            {toast.type === "success" ? "✅ " : "⚠️ "} {toast.message}
+        </div>
+      )}
 
       {/* BARRA LATERAL (SIDEBAR) */}
-      <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
+      <div className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col z-10">
         <div className="p-6">
           <h1 className="text-2xl font-bold text-cyan-400 tracking-wider">🎮 Studio-AI</h1>
           <p className="text-xs text-gray-400 mt-1">Master Control</p>
@@ -63,15 +78,16 @@ export default function App() {
       </div>
 
       {/* ÁREA DE CONTEÚDO PRINCIPAL */}
-      <div className="flex-1 overflow-y-auto p-8">
-        {/* 🎯 3. As tuas rotas internas */}
-        {activePage === 'home' && <Home />}
-        {activePage === 'performance' && <Performance />}
-        {activePage === 'hall' && <HallOfFame />}
-        {activePage === 'art' && <ArtStudio />}
-        {activePage === 'audio' && <AudioStudio />}
-        {activePage === 'marketing' && <MarketingHub />}
-        {activePage === 'vault' && <Vault />}
+      <div className="flex-1 overflow-y-auto p-8 z-0">
+        {/* 🚨 4. PASSAMOS A FUNÇÃO 'showToast' PARA AS PÁGINAS COMO UMA "PROP" */}
+        {activePage === 'home' && <Home showToast={showToast} />}
+        {activePage === 'performance' && <Performance showToast={showToast} />}
+        {activePage === 'hall' && <HallOfFame showToast={showToast} />}
+        {activePage === 'art' && <ArtStudio showToast={showToast} />}
+        {activePage === 'audio' && <AudioStudio showToast={showToast} />}
+        {activePage === 'marketing' && <MarketingHub showToast={showToast} />}
+        {activePage === 'vault' && <Vault showToast={showToast} />}
+        {activePage === 'uipreview' && <UIPreview showToast={showToast} />}
       </div>
 
     </div>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <Style src="EndScreenStyle.uss" />
+
+    <ui:VisualElement class="bg-overlay">
+        <ui:VisualElement class="end-panel">
+            <ui:Label name="txt-title" text="RESULTADO" class="title-text" />
+            <ui:Label name="txt-reason" text="Detalhes da partida aqui..." class="desc-text" />
+
+            <ui:Button name="btn-action" text="CONTINUAR" class="btn" />
+
+            <ui:Button name="btn-menu" text="MENU PRINCIPAL" class="btn btn-secondary" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

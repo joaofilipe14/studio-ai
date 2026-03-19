@@ -2,7 +2,8 @@
   "playerName": "Director",
   "currentCampaignLevel": 1,
   "wallet": {
-    "totalCoins": 0
+    "totalCoins": 0,
+    "timeCrystals": 0
   },
   "loadout": {
     "selectedClassID": "Explorer"
@@ -12,9 +13,14 @@
   ],
   "purchasedUpgrades": {
     "startExtraTimeLvl": 0,
-    "morePowerUpsLvl": 0
+    "morePowerUpsLvl": 0,
+    "permSpeedLvl": 0,
+    "trapReductionLvl": 0
   },
   "stats": {
+    "maxLives": 3,
+    "currentLives": 3,
+    "basePowerUpCount": 3,
     "totalTrapsHit": 0,
     "totalWins": 0
   }

@@ -1,0 +1,102 @@
+.hud-container {
+    flex-grow: 1;
+    justify-content: flex-start;
+    padding: 20px 40px; /* Margens para não colar aos cantos da janela */
+}
+
+.top-bar {
+    flex-direction: row;
+    justify-content: space-between; /* Afasta as caixas (Esquerda, Centro, Direita) */
+    align-items: flex-start;
+}
+
+.hud-box {
+    flex-direction: row;
+    align-items: center;
+    background-color: rgba(10, 10, 15, 0.85); /* Fundo vidro escuro */
+    padding: 10px 25px;
+    border-radius: 8px;
+    border-bottom-width: 3px; /* A linha néon em baixo! */
+}
+
+/* Cores das linhas Néon */
+.box-lives { border-bottom-color: rgb(255, 50, 50); }
+.box-timer { border-bottom-color: rgb(0, 255, 255); }
+.box-score { border-bottom-color: rgb(255, 204, 51); }
+
+.hud-text {
+    font-size: 32px;
+    color: white;
+    -unity-font-style: bold;
+}
+
+.text-cyan { color: rgb(0, 255, 255); }
+.text-yellow { color: rgb(255, 204, 51); }
+
+.icon {
+    width: 35px;
+    height: 35px;
+    -unity-background-scale-mode: scale-to-fit;
+    margin-right: 15px;
+    margin-left: 15px;
+}
+
+/* ==========================================
+   ÍCONES DE MELHORIAS (BUFFS LATERAIS)
+   ========================================== */
+.buffs-container {
+    position: absolute;
+    left: 40px; /* Alinhado com a caixa de vidas */
+    top: 110px; /* Distância do topo para não sobrepor a top-bar */
+    flex-direction: column;
+    align-items: center;
+}
+
+.hud-buff-icon {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 12px; /* Espaço entre cada ícone verticalmente */
+    background-color: rgba(10, 15, 20, 0.9);
+    border-radius: 8px;
+    border-width: 2px;
+    border-color: rgba(0, 255, 255, 0.4); /* Borda Cyberpunk (Ciano) */
+    border-bottom-width: 4px; /* Mais grossa em baixo para condizer com o HUD */
+    border-bottom-color: rgb(0, 255, 255);
+    -unity-background-scale-mode: scale-to-fit;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.15); /* Brilho Néon */
+}
+.icon-item-life { background-image: resource("Sprites/HeartSprite"); }
+.icon-item-time-boost { background-image: resource("Sprites/TimeSprite"); } /* Imagem de relógio/tempo */
+.icon-item-perm-speed { background-image: resource("Sprites/SpeedSprite"); } /* Imagem de velocidade */
+.icon-item-trap-reduction { background-image: resource("Sprites/ShieldSprite"); } /* Imagem de escudo/jammer */
+.icon-item-luck-boost { background-image: resource("Sprites/LuckSprite"); } /* Imagem de trevo/sorte */
+
+
+/* ==========================================
+   ÍCONES DA SAFE ROOM (PODERES TEMPORÁRIOS)
+   ========================================== */
+/* Agrupamos as 3 raridades para usarem a mesma imagem base (o C# trata da cor da borda!) */
+
+/* Velocidade (Bebidas, Adrenalina, Pernas) */
+.icon-temp-speed-common,
+.icon-temp-speed-uncommon,
+.icon-temp-speed-rare {
+    background-image: resource("Sprites/SpeedSprite");
+}
+
+/* Visão / Lanterna (Pilhas, Tática, Olho Biónico) */
+.icon-temp-vision-common,
+.icon-temp-vision-uncommon,
+.icon-temp-vision-rare {
+    background-image: resource("Sprites/VisionSprite");
+}
+
+/* Redução de Armadilhas (Mapas, Scanners, Hackers) */
+.icon-temp-trap-common,
+.icon-temp-trap-uncommon,
+.icon-temp-trap-rare {
+    background-image: resource("Sprites/ShieldSprite");
+}
+
+.icon-heart { background-image: resource("Sprites/HeartSprite"); margin-left: 0; }
+.icon-coin { background-image: resource("Textures/CollectibleTexture"); margin-right: 0; }
