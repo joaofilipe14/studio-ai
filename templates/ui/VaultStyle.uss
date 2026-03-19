@@ -1,0 +1,175 @@
+.icon-explorer { background-image: resource("Sprites/ExplorerSprite"); }
+.icon-ninja { background-image: resource("Sprites/NinjaSprite"); }
+.icon-tank { background-image: resource("Sprites/TankSprite"); }
+
+/* Ajuste para as sprites não ficarem cortadas */
+.card-img {
+    -unity-background-scale-mode: scale-to-fit;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* ==========================================
+   FUNDO E PAINEL
+   ========================================== */
+.bg-image { flex-grow: 1; background-image: resource("Textures/MenuBackground"); -unity-background-scale-mode: scale-and-crop; justify-content: center; align-items: center; }
+.bg-overlay { position: absolute; left: 0; right: 0; top: 0; bottom: 0; background-color: rgba(5, 8, 12, 0.92); }
+
+.vault-panel {
+    width: 900px;
+    height: 650px;
+    background-color: rgba(12, 16, 22, 0.98);
+    border-top-width: 3px;
+    border-top-color: rgb(0, 255, 255);
+    border-bottom-width: 3px;
+    border-bottom-color: rgb(0, 255, 255);
+    padding: 20px;
+    border-radius: 4px;
+}
+
+/* ==========================================
+   SISTEMA DE ABAS (TABS)
+   ========================================== */
+.tabs-bar {
+    flex-direction: row;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+
+.tab-btn {
+    width: 220px;
+    height: 48px;
+    background-color: rgba(10, 15, 20, 0.9); /* Fundo escuro fosco tipo Safe Room */
+    color: rgba(200, 220, 255, 0.6);
+    font-size: 16px;
+    -unity-font-style: bold;
+    margin: 0 15px;
+    border-width: 0px;
+    border-bottom-width: 3px; /* A grossura néon */
+    border-bottom-color: rgba(0, 255, 255, 0.1); /* Apagado por defeito */
+    transition-duration: 0.15s;
+    letter-spacing: 2px;
+}
+
+.tab-btn:hover {
+    color: white;
+    background-color: rgba(0, 255, 255, 0.05);
+    border-bottom-color: white; /* "Prepara" para acender */
+}
+
+.tab-active {
+    color: rgb(0, 255, 255);
+    border-bottom-color: rgb(0, 255, 255); /* Ciano Néon Ativo! */
+    background-color: rgba(0, 255, 255, 0.1);
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+}
+
+/* ==========================================
+   CARTAS E ÍCONES
+   ========================================== */
+.scroll-container { flex-grow: 1; margin: 10px 0; }
+
+.cards-container {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.card {
+    width: 200px;
+    height: 300px;
+    background-color: rgba(20, 25, 35, 0.9);
+    border-radius: 4px;
+    padding: 15px;
+    margin: 10px;
+    border-width: 1px;
+    border-color: rgba(0, 255, 255, 0.1);
+    justify-content: space-between;
+}
+
+.card:hover { border-color: rgb(0, 255, 255); scale: 1.02; }
+
+.card-title { font-size: 16px; color: white; -unity-font-style: bold; -unity-text-align: middle-center; }
+
+.card-img {
+    width: 90px;
+    height: 90px;
+    align-self: center;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 45px;
+    border-width: 2px;
+    border-color: rgb(0, 255, 255);
+    -unity-background-scale-mode: scale-to-fit;
+    padding: 12px;
+}
+
+/* Tipografia */
+.title-text { font-size: 36px; color: rgb(0, 255, 255); -unity-font-style: bold; -unity-text-align: middle-center; letter-spacing: 5px; }
+.stats-text { font-size: 14px; color: rgb(150, 180, 220); -unity-text-align: middle-center; margin-top: 5px; }
+.divider { height: 1px; background-color: rgba(0, 255, 255, 0.15); margin: 10px 0; }
+.card-desc { font-size: 11px; color: #999; -unity-text-align: middle-center; margin-top: 5px; }
+
+/* Botões Cyberpunk */
+.btn {
+    height: 42px;
+    border-radius: 4px;
+    -unity-font-style: bold;
+    font-size: 14px;
+    background-color: rgba(10, 15, 20, 0.9);
+    color: white;
+    border-width: 0px;
+    border-bottom-width: 3px; /* Borda grossa inferior */
+    transition-duration: 0.15s;
+}
+.icon-counter {
+    position: absolute; /* Place it dynamically inside the parent */
+    right: 0; /* Align with the right edge */
+    bottom: 0; /* Align with the bottom edge */
+    width: 26px; /* A round, circular shape */
+    height: 26px;
+    background-color: rgba(20, 25, 30, 0.95); /* A slightly different background color for contrast */
+    border-radius: 13px; /* Perfect circle */
+    border-width: 1px;
+    border-color: rgba(0, 255, 255, 0.3); /* Cyan border, no longer blue! */
+    color: rgb(0, 255, 255); /* Cyan text to match */
+    -unity-font-style: bold;
+    -unity-text-align: middle-center; /* Center the number */
+    font-size: 13px;
+    padding: 0;
+    margin: 0;
+}
+
+/* O Botão de Comprar (Ciano) */
+.cyberpunk-blue {
+    border-bottom-color: rgb(0, 255, 255);
+}
+.cyberpunk-blue:hover {
+    background-color: rgba(0, 255, 255, 0.15);
+    scale: 1.05;
+}
+
+/* O Botão de Voltar (Cinza/Padrão) */
+.cyberpunk-gray {
+    border-bottom-color: #555;
+    color: #999;
+}
+.cyberpunk-gray:hover {
+    border-bottom-color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+    scale: 1.05;
+}
+
+.back-btn {
+    width: 350px;
+    align-self: center;
+    margin-top: 15px;
+    height: 50px;
+    font-size: 16px;
+    letter-spacing: 2px;
+}
+/* --- AUTO-GERADO PELO PYTHON --- */
+.icon-item-life { background-image: resource("Sprites/ItemLifeIcon"); }
+.icon-item-time-boost { background-image: resource("Sprites/ItemTimeBoostIcon"); }
+.icon-item-luck-boost { background-image: resource("Sprites/ItemLuckBoostIcon"); }
+.icon-item-perm-speed { background-image: resource("Sprites/ItemPermSpeedIcon"); }
+.icon-item-trap-reduction { background-image: resource("Sprites/ItemTrapReductionIcon"); }

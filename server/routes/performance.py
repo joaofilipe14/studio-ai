@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 # 🎯 Importamos a função diretamente do teu ficheiro central de base de dados!
-from shared.db.evolution_logger import get_evolution_history
+from shared.db.evolution_logger import get_all_metrics_for_api
 
 router = APIRouter(prefix="/performance", tags=["Performance"])
 
@@ -28,7 +28,7 @@ def get_metrics():
 
     try:
         # 1. Vamos buscar o Pandas DataFrame usando a tua função nativa!
-        df = get_evolution_history(db_path)
+        df = get_all_metrics_for_api(db_path)
 
         if df.empty:
             return {"data": []}
@@ -44,11 +44,12 @@ def get_metrics():
             # 4. Traduzimos os nomes das colunas da BD para o formato que o React espera
             mapped_entry = {
                 "id": entry["id"],
+                "session_id": entry["session_id"],
                 "timestamp": entry["timestamp"],
                 "level_id": entry["level_id"],
-                "mode": entry["game_mode"], # Na BD é game_mode
                 "win_rate": entry["win_rate"],
                 "enemy_speed": entry["enemy_speed"],
+                "raw_metrics": entry["metrics_json"],
                 "is_human": bool(entry.get("is_human", 0)),
                 "report": entry["ai_report"] # Na BD é ai_report
             }

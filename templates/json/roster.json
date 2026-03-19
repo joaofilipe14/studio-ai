@@ -4,13 +4,13 @@
       "id": "Explorer",
       "name": "O Explorador",
       "description": "Equilibrado. Excelente visão no escuro.",
-      "spriteName": "PlayerSprite",
+      "spriteName": "ExplorerSprite",
       "cost": 0,
       "stats": {
         "speed": 6.0,
-        "acceleration": 12.0,
         "visionRadius": 12.0,
-        "trapResistance": 1.0
+        "trapResistance": 1.0,
+        "baseLives": 3
       }
     },
     {
@@ -21,10 +21,55 @@
       "cost": 50,
       "stats": {
         "speed": 9.5,
-        "acceleration": 18.0,
         "visionRadius": 5.0,
-        "trapResistance": 1.0
+        "trapResistance": 1.0,
+        "baseLives": 3
       }
+    },
+    {
+      "id": "Tank",
+      "name": "O Tanque",
+      "description": "Lento e pesado, mas começa com muito mais vida.",
+      "spriteName": "TankSprite",
+      "cost": 100,
+      "stats": {
+        "speed": 4.5,
+        "visionRadius": 8.0,
+        "trapResistance": 2.0,
+        "baseLives": 6
+      }
+    }
+  ],
+  "items": [
+    {
+      "id": "item_life",
+      "name": "Vida Extra",
+      "description": "Aumenta a tua vida máxima permanentemente em 1.",
+      "cost": 150
+    },
+    {
+      "id": "item_time_boost",
+      "name": "Boost de Tempo Base",
+      "description": "Aumenta o tempo inicial de todos os níveis.",
+      "cost": 200
+    },
+    {
+      "id": "item_luck_boost",
+      "name": "Sorte Clandestina",
+      "description": "Aumenta a probabilidade de aparecerem itens RAROS na Zona Segura.",
+      "cost": 75
+    },
+    {
+      "id": "item_perm_speed",
+      "name": "Óleo de Motor Sintético",
+      "description": "Aumenta a tua velocidade de movimento permanentemente em +0.5.",
+      "cost": 120
+    },
+    {
+      "id": "item_trap_reduction",
+      "name": "Hack de Segurança",
+      "description": "Reduz o número de armadilhas geradas no labirinto permanentemente.",
+      "cost": 180
     }
   ]
 }

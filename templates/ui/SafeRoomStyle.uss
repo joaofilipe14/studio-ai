@@ -1,0 +1,111 @@
+/* ==========================================
+   FUNDO E PAINEL PRINCIPAL (MANTIDO)
+   ========================================== */
+.bg-overlay { flex-grow: 1; background-color: rgba(5, 5, 8, 0.90); justify-content: center; align-items: center; }
+
+.end-panel {
+    width: 800px;
+    background-color: rgba(12, 12, 16, 0.95);
+    border-top-width: 4px;
+    border-top-color: rgb(50, 255, 100); /* Verde Zona Segura */
+    border-bottom-width: 4px;
+    border-bottom-color: rgb(50, 255, 100);
+    padding: 30px;
+    border-radius: 12px;
+    align-items: center;
+    box-shadow: 0 0 30px rgba(0, 255, 100, 0.2);
+}
+
+.title-text { font-size: 45px; -unity-font-style: bold; color: rgb(50, 255, 100); margin-bottom: 5px; letter-spacing: 4px; -unity-text-align: middle-center; }
+.desc-text { font-size: 16px; color: rgb(150, 150, 150); -unity-text-align: middle-center; margin-bottom: 5px; }
+.coins-text { font-size: 22px; color: rgb(255, 204, 51); -unity-font-style: bold; margin-bottom: 15px; }
+.divider { height: 1px; width: 100%; background-color: rgba(50, 255, 100, 0.2); margin-bottom: 15px; margin-top: 15px; }
+
+/* A Grelha de Compras (MANTIDO) */
+.cards-container { flex-direction: row; justify-content: center; align-items: center; min-height: 220px; width: 100%; }
+
+/* ==========================================
+   AS CARTAS (MELHORADO)
+   ========================================== */
+.card {
+    width: 190px; /* Ligeiramente mais larga */
+    height: 230px; /* Ligeiramente mais alta para caber o ícone futuramente */
+    background-color: rgba(20, 25, 30, 0.8);
+    border-radius: 8px;
+    padding: 12px;
+    border-width: 1px;
+    border-color: rgba(50, 255, 100, 0.2);
+    margin: 10px;
+    justify-content: space-between;
+    transition-duration: 0.2s;
+}
+
+.card:hover {
+    border-color: rgb(50, 255, 100);
+    background-color: rgba(30, 40, 45, 0.9);
+    scale: 1.05;
+}
+
+.card-title {
+    font-size: 15px; /* Aumentado */
+    color: white;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    margin-bottom: 8px;
+}
+
+/* 🚨 NOVA CLASSE PARA O ÍCONE (Prepara o espaço vazio) */
+.card-img {
+    width: 60px;
+    height: 60px;
+    align-self: center;
+    margin-bottom: 8px;
+    -unity-background-scale-mode: scale-to-fit;
+    background-color: rgba(0, 0, 0, 0.3); /* Fundo temporário */
+    border-radius: 30px;
+    border-width: 1px;
+    border-color: rgba(50, 255, 100, 0.3);
+    /* Quando tivermos as sprites, adicionamos as classes .icon-speed, .icon-vision aqui */
+}
+
+.card-desc {
+    /* 🚨 A CURA PARA A LEGIBILIDADE */
+    font-size: 13px; /* Aumentado de 11px para 13px */
+    color: rgb(220, 230, 240); /* Mudado de cinza escuro para quase branco */
+    -unity-font-style: normal; /* Removido o itálico (italic -> normal) */
+
+    -unity-text-align: middle-center;
+    white-space: normal;
+    flex-grow: 1;
+    margin-bottom: 10px;
+}
+
+/* ==========================================
+   BOTÕES (MELHORADO)
+   ========================================== */
+.btn-buy {
+    height: 38px;
+    border-radius: 4px;
+    background-color: rgba(10, 15, 20, 0.9);
+    color: white;
+    font-size: 13px;
+    -unity-font-style: bold;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.05);
+    border-bottom-width: 3px;
+    border-bottom-color: rgb(255, 204, 51);
+    transition-duration: 0.1s;
+}
+
+.btn-buy:hover {
+    color: rgb(255, 204, 51);
+    background-color: rgba(255, 204, 51, 0.1);
+    scale: 1.02;
+}
+
+/* Botão Continuar (MANTIDO) */
+.btn { width: 400px; height: 50px; font-size: 18px; -unity-font-style: bold; color: white; background-color: rgba(30, 30, 35, 0.9); border-width: 0; border-bottom-width: 4px; border-bottom-color: rgb(50, 255, 100); border-radius: 8px; transition-duration: 0.2s; margin-top: 10px; }
+.btn:hover { background-color: rgba(50, 255, 100, 0.15); scale: 1.05; }
+
+.icon-speedboost { background-image: resource("Sprites/SpeedBoostIcon"); }
+.icon-visionboost { background-image: resource("Sprites/VisionBoostIcon"); }

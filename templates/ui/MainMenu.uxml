@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+
+    <Style src="MainMenuStyle.uss" />
+
+    <ui:VisualElement class="bg-image">
+
+        <ui:VisualElement class="bg-overlay" />
+
+        <ui:VisualElement class="side-menu">
+
+            <ui:VisualElement class="header-box">
+                <ui:Label text="STUDIO-AI" class="title-text" />
+                <ui:Label text="A SIMULAÇÃO" class="subtitle-text" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="stats-box">
+                <ui:Label name="txt-stats" text="Moedas: 0 | Cristais: 0" class="stats-text" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="divider" />
+
+            <ui:Button name="btn-play" text="INICIAR SIMULAÇÃO" class="btn cyberpunk-green" />
+            <ui:Button name="btn-vault" text="O COFRE (Classes)" class="btn cyberpunk-blue" />
+            <ui:Button name="btn-reset" text="RECOMEÇAR TUDO" class="btn cyberpunk-red" />
+            <ui:Button name="btn-quit" text="SAIR" class="btn cyberpunk-gray" />
+
+            <ui:VisualElement class="footer">
+                <ui:Label text="v2.0 - Studio Edition" class="version-text" />
+            </ui:VisualElement>
+
+        </ui:VisualElement>
+
+    </ui:VisualElement>
+</ui:UXML>

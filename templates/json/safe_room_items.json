@@ -1,0 +1,85 @@
+{
+  "safeRoomItems": [
+    {
+      "id": "temp_speed_common",
+      "name": "Bebida Energética",
+      "description": "+10% Velocidade até ao fim da Run",
+      "rarity": "Common",
+      "cost": 5,
+      "effectType": "SpeedBoost",
+      "effectValue": 1.1
+    },
+    {
+      "id": "temp_speed_uncommon",
+      "name": "Injeção de Adrenalina",
+      "description": "+25% Velocidade até ao fim da Run",
+      "rarity": "Uncommon",
+      "cost": 10,
+      "effectType": "SpeedBoost",
+      "effectValue": 1.25
+    },
+    {
+      "id": "temp_speed_rare",
+      "name": "Pernas Cibernéticas",
+      "description": "+50% Velocidade até ao fim da Run",
+      "rarity": "Rare",
+      "cost": 15,
+      "effectType": "SpeedBoost",
+      "effectValue": 1.5
+    },
+    {
+      "id": "temp_vision_common",
+      "name": "Pilhas Novas",
+      "description": "+2m de Visão na Lanterna",
+      "rarity": "Common",
+      "cost": 5,
+      "effectType": "VisionBoost",
+      "effectValue": 2.0
+    },
+    {
+      "id": "temp_vision_uncommon",
+      "name": "Lanterna Tática",
+      "description": "+5m de Visão na Lanterna",
+      "rarity": "Uncommon",
+      "cost": 10,
+      "effectType": "VisionBoost",
+      "effectValue": 5.0
+    },
+    {
+      "id": "temp_vision_rare",
+      "name": "Olho Biónico de Visão Noturna",
+      "description": "+12m de Visão na Lanterna",
+      "rarity": "Rare",
+      "cost": 15,
+      "effectType": "VisionBoost",
+      "effectValue": 12.0
+    },
+    {
+      "id": "temp_trap_common",
+      "name": "Mapa de Minas",
+      "description": "-15% de Armadilhas no resto da Run",
+      "rarity": "Common",
+      "cost": 5,
+      "effectType": "TrapReduction",
+      "effectValue": 0.85
+    },
+    {
+      "id": "temp_trap_uncommon",
+      "name": "Rastreador de Perigo",
+      "description": "-35% de Armadilhas no resto da Run",
+      "rarity": "Uncommon",
+      "cost": 10,
+      "effectType": "TrapReduction",
+      "effectValue": 0.65
+    },
+    {
+      "id": "temp_trap_rare",
+      "name": "Pulseira EMP",
+      "description": "-60% de Armadilhas no resto da Run",
+      "rarity": "Rare",
+      "cost": 15,
+      "effectType": "TrapReduction",
+      "effectValue": 0.40
+    }
+  ]
+}

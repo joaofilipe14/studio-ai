@@ -8,8 +8,18 @@ public class LevelReport {
     public int total_rounds;
     public int wins;
     public float win_rate;
-    public float avg_time_to_goal;
-    public int stuck_events;
+    public float time_to_win;
+    public int lives_lost;
+    public int timeouts;
+    public int collected_coins;
+    public int collected_crystals;
+    public int powerups_used;
+}
+
+[System.Serializable]
+public class ItemPurchase {
+    public string itemID;
+    public int quantity;
 }
 
 [System.Serializable]
@@ -41,6 +51,7 @@ public class GameManager : MonoBehaviour {
     public PlayerSave currentPlayer { get; private set; }
     public CharacterClass selectedClass { get; private set; }
     public Roster roster { get; private set; }
+    public SafeRoomCatalog safeRoomCatalog { get; private set; }
     private bool isPaused = false;
 
     [Header("Configurações de Grelha")]
@@ -67,6 +78,11 @@ public class GameManager : MonoBehaviour {
     public bool userControl = true;
     public float chaserMoveSpeed = 3.5f;
 
+    [Header("Buffs Ativos da Run (Safe Room)")]
+    public List<ItemPurchase> tempPurchasedItems = new List<ItemPurchase>();
+    public float currentRunSpeedMultiplier = 1f;
+    public float currentRunTrapMultiplier = 1f;
+    public float currentRunVisionBonus = 0f;
     [Header("Power-ups")]
     public float timeBoostAmount = 5f;
     public float speedBoostMultiplier = 1.5f;
@@ -75,7 +91,8 @@ public class GameManager : MonoBehaviour {
     [Header("Métricas Internas")]
     private int winsCount = 0;
     private int timeoutsCount = 0;
-    private int stuckCount = 0;
+    private int livesLostCount = 0;
+    public int powerupsUsedCount = 0;
     public int trapsHitCount = 0;
     private int totalCollectedGame = 0;
     private float totalPlayTime = 0f;
@@ -94,7 +111,6 @@ public class GameManager : MonoBehaviour {
     public SimpleAgent agent;
 
     [Header("Regras da Campanha")]
-    public int botMaxAttempts = 10; // O Bot tem mais margem para testar exaustivamente
     public int currentLevelAttempts = 0;
 
     [Header("Áudio e SFX")]
@@ -102,11 +118,13 @@ public class GameManager : MonoBehaviour {
 
     void Awake() {
         if (Instance == null) Instance = this;
+        RenderSettings.skybox = null;
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.2f, 0.25f, 0.3f);
+        RenderSettings.ambientLight = new Color(0.15f, 0.15f, 0.2f);
         string[] args = System.Environment.GetCommandLineArgs();
         for (int i = 0; i < args.Length; i++) {
             if (args[i] == "-trailerMode") isTrailerMode = true;
+            if (args[i] == "-botMode") userControl = false;
             if (args[i] == "-trailerFolder" && i + 1 < args.Length) {
                 trailerFolderPath = args[i + 1];
             }
@@ -121,51 +139,39 @@ public class GameManager : MonoBehaviour {
     public void StartNewRun() {
         totalAttempts++;
         if (totalAttempts > rounds || currentLevel == null) { QuitGame(); return; }
-
         currentLevelAttempts++; // Conta logo a tentativa 1 antes de jogares!
         roundPlayTime = 0f;     // Zera o relógio da ronda
-
         finished = false;
         isPlaying = true;
         collectedInRound = 0;
-
-        timeLimit = currentLevel.rules.timeLimit;
-        if (timeLimit <= 0.1f) timeLimit = 30f;
         collectibles = currentLevel.rules.targetCount;
         chaserMoveSpeed = currentLevel.rules.enemySpeed;
         gridWidth = (int)(currentLevel.arena.halfSize * 2);
         gridHeight = (int)(currentLevel.arena.halfSize * 2);
         seed = currentLevel.seed;
-        agentMoveSpeed = selectedClass.stats.speed;
-
+        timeLimit = currentLevel.rules.timeLimit;
+        if (timeLimit <= 0.1f) timeLimit = 30f;
+        if (currentPlayer.purchasedUpgrades != null) {
+            timeLimit += (currentPlayer.purchasedUpgrades.startExtraTimeLvl * 10f);
+        }
         currentTimer = timeLimit;
-
-        // 🚨 SEMENTES DINÂMICAS (ROGUELIKE)
-        // 1ª Tentativa = O Labirinto Original do Genoma.
-        // Tentativas Seguintes = Gera uma semente caótica! Labirinto novo!
         if (currentLevelAttempts <= 1) {
             currentActiveSeed = seed;
         } else {
             currentActiveSeed = seed + UnityEngine.Random.Range(1000, 99999);
         }
-
         Debug.Log($"A iniciar Nível {currentLevel.level_id} | Semente Ativa: {currentActiveSeed} | Obstáculos: {currentLevel.obstacles.count}");
-
         if (!Application.isBatchMode && GameObject.Find("BackgroundMusic") == null) SetupAudio();
-
         if (world == null) world = gameObject.AddComponent<GridWorld>();
-
-        // 🚨 O Mundo 3D usa agora a Semente Dinâmica
         world.Build(gridWidth, gridHeight, cellSize, currentLevel.obstacles.count, currentActiveSeed);
-
         CleanupScene();
         BuildFloorAndObstacles();
-
-        // 🚨 A colocação dos itens também muda de sítio com a nova Semente!
         System.Random rng = new System.Random(currentActiveSeed);
         LevelSpawner.ResetSpawns();
-
+        float permSpeedBonus = (currentPlayer.purchasedUpgrades != null) ? (currentPlayer.purchasedUpgrades.permSpeedLvl * 0.5f) : 0f;
+        agentMoveSpeed = (selectedClass.stats.speed + permSpeedBonus) * currentRunSpeedMultiplier;
         float vRadius = selectedClass != null ? selectedClass.stats.visionRadius : 8.0f;
+        vRadius += currentRunVisionBonus;
         string spriteToLoad = selectedClass != null ? selectedClass.spriteName : "PlayerSprite";
         if (agent == null) {
             agent = LevelSpawner.SpawnAgent(world, rng, agentMoveSpeed, userControl, vRadius, spriteToLoad);
@@ -174,35 +180,47 @@ public class GameManager : MonoBehaviour {
             agent.world = world;
             agent.moveSpeed = agentMoveSpeed;
             agent.ResetPosition(newStart);
+            Light agentLight = agent.GetComponentInChildren<Light>();
+            if (agentLight != null) agentLight.range = vRadius;
         }
-       LevelSpawner.CalculateReachableArea(world, agent.gridPos);
+        LevelSpawner.CalculateReachableArea(world, agent.gridPos);
 
-       float minGoalDistance = Mathf.Max(gridWidth, gridHeight) * 0.4f;
-              float minEnemySafeDistance = Mathf.Max(gridWidth, gridHeight) * 0.3f;
+        float minGoalDistance = Mathf.Max(gridWidth, gridHeight) * 0.4f;
+        float minEnemySafeDistance = Mathf.Max(gridWidth, gridHeight) * 0.3f;
 
-               if (currentLevel.rules.enemyCount > 0)
-                   LevelSpawner.SpawnEnemies(world, rng, currentLevel.rules.enemyCount, chaserMoveSpeed, agent.gridPos, minEnemySafeDistance);
-               LevelSpawner.SpawnGoal(world, rng, agent.gridPos, minGoalDistance);
+        if (currentLevel.rules.enemyCount > 0)
+            LevelSpawner.SpawnEnemies(world, rng, currentLevel.rules.enemyCount, chaserMoveSpeed, agent.gridPos, minEnemySafeDistance);
 
-               if (collectibles > 0)
-                   LevelSpawner.SpawnCollectibles(world, rng, collectibles);
+        LevelSpawner.SpawnGoal(world, rng, agent.gridPos, minGoalDistance);
 
-               if (currentLevel.rules.powerUpCount > 0)
-                   LevelSpawner.SpawnPowerUps(world, rng, currentLevel.rules.powerUpCount);
+        if (collectibles > 0)
+            LevelSpawner.SpawnCollectibles(world, rng, collectibles);
 
-        if (currentLevel.rules.trapCount > 0)
-            LevelSpawner.SpawnTraps(world, rng, currentLevel.rules.trapCount, currentLevel.rules.trapPenalty);
+        int powerUpsToSpawn = currentPlayer.stats.basePowerUpCount;
+        if (currentPlayer.purchasedUpgrades != null) {
+            powerUpsToSpawn += currentPlayer.purchasedUpgrades.morePowerUpsLvl;
+        }
+        if (powerUpsToSpawn > 0)
+            LevelSpawner.SpawnPowerUps(world, rng, powerUpsToSpawn);
+
+        int baseTraps = currentLevel.rules.trapCount;
+        float permTrapReduction = (currentPlayer.purchasedUpgrades != null) ? (currentPlayer.purchasedUpgrades.trapReductionLvl * 0.05f) : 0f;
+        float finalTrapMultiplier = Mathf.Clamp01((1f - permTrapReduction) * currentRunTrapMultiplier);
+        int finalTraps = Mathf.RoundToInt(baseTraps * finalTrapMultiplier);
+
+        if (finalTraps > 0)
+            LevelSpawner.SpawnTraps(world, rng, finalTraps, currentLevel.rules.trapPenalty);
+
         if (userControl) {
             Cursor.visible = false;
             Cursor.lockState = CursorLockMode.Locked;
         }
+
         if (isTrailerMode) {
-            // Esconde a interface gráfica para ficar um vídeo limpo
             if (UIManager.Instance != null) UIManager.Instance.HideUIForTrailer();
 
             if (trailerDirector == null) trailerDirector = gameObject.AddComponent<TrailerDirector>();
             Vector3 heroTarget = (agent != null) ? agent.transform.position : new Vector3((gridWidth * cellSize) / 2f, 0, (gridHeight * cellSize) / 2f);
-            // Inicia o vídeo e manda fechar o jogo quando acabar!
             trailerDirector.StartHeroShot(heroTarget, trailerFolderPath, () => {
                 #if UNITY_EDITOR
                     UnityEditor.EditorApplication.isPlaying = false;
@@ -220,16 +238,12 @@ public class GameManager : MonoBehaviour {
         foreach (Light l in allLights) {
             if (l.type == LightType.Directional) hasSun = true;
         }
-
-        // Se o Unity não tiver um Sol na cena, o código cria um gigante!
         if (!hasSun) {
             GameObject lightObj = new GameObject("GlobalSun");
             Light sun = lightObj.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = new Color(0.7f, 0.8f, 1.0f); // Azul claro Cyberpunk
-            sun.intensity = 1.2f; // Força da luz global
-
-            // Aponta para baixo na diagonal para criar sombras fixes
+            sun.color = new Color(0.3f, 0.4f, 0.6f); // Azul claro Cyberpunk
+            sun.intensity = 2.9f; // Força da luz global
             lightObj.transform.rotation = Quaternion.Euler(50, -30, 0);
         }
     }
@@ -240,9 +254,7 @@ public class GameManager : MonoBehaviour {
             File.Delete(savePath); // Apaga o ficheiro físico
             Debug.Log("Ficheiro de Save apagado. Reiniciando progresso...");
         }
-        // Recarrega as configurações base (o LoadGenomeConfig já cria um save novo se não existir)
         LoadGenomeConfig();
-        // Volta ao Menu Principal com os dados limpos
         UI_ReturnToMenu();
     }
 
@@ -290,36 +302,42 @@ public class GameManager : MonoBehaviour {
     Material CreateEnvironmentMaterial(string textureName, Color fallbackColor) {
         Texture2D tex = Resources.Load<Texture2D>("Textures/" + textureName);
 
-        // 🚨 TRUQUE NINJA: Extrai o Shader diretamente de um primitivo (que o Unity nunca apaga!)
-        GameObject tempCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        Material mat = new Material(tempCube.GetComponent<Renderer>().sharedMaterial.shader);
-        Destroy(tempCube); // Destrói o cubo logo a seguir
+        Shader standardShader = Shader.Find("Standard");
+        if (standardShader == null) standardShader = Shader.Find("Legacy Shaders/VertexLit");
+        Material mat = new Material(standardShader);
 
-        if (currentLevel != null && currentLevel.theme == "Cyberpunk Neon") {
-            if (textureName == "FloorTexture") ColorUtility.TryParseHtmlString("#303040", out fallbackColor);
-            else if (textureName == "ObstacleTexture") ColorUtility.TryParseHtmlString("#00ffff", out fallbackColor);
-        }
-
-        mat.color = fallbackColor;
         if (tex != null) {
+            mat.color = Color.white;
             mat.mainTexture = tex;
+
             if (textureName == "FloorTexture") {
                 mat.mainTextureScale = new Vector2(gridWidth / 4f, gridHeight / 4f);
+                mat.SetFloat("_Glossiness", 0.7f); // Chão reflexivo
+            } else {
+                mat.SetFloat("_Glossiness", 0.3f); // Paredes baças, reagem à luz do jogador
             }
+        } else {
+            // Fallback apenas se a textura não existir
+            if (textureName == "FloorTexture") ColorUtility.TryParseHtmlString("#151515", out fallbackColor);
+            else if (textureName == "ObstacleTexture") ColorUtility.TryParseHtmlString("#0A151A", out fallbackColor);
+
+            mat.color = fallbackColor;
+            mat.SetFloat("_Glossiness", 0.5f);
         }
 
-        mat.SetFloat("_Glossiness", 0.4f);
-        return mat;
+        return mat; // Removemos completamente as Emissões forçadas por código!
     }
 
     void LoadGenomeConfig() {
-        // AGORA LÊ A CAMPANHA INTEIRA!
+        // LÊ A CAMPANHA INTEIRA E OS NOVOS FICHEIROS
         string campaignPath = Path.Combine(Application.dataPath, "..", "level_genome.json");
         string rosterPath = Path.Combine(Application.dataPath, "..", "roster.json");
         string savePath = Path.Combine(Application.dataPath, "..", "player_save.json");
+        string safeRoomPath = Path.Combine(Application.dataPath, "..", "safe_room_items.json");
 
         roster = Roster.Load(rosterPath);
         currentPlayer = PlayerSave.Load(savePath);
+        safeRoomCatalog = SafeRoomCatalog.Load(safeRoomPath);
 
         if (File.Exists(campaignPath)) {
             string json = File.ReadAllText(campaignPath);
@@ -328,34 +346,12 @@ public class GameManager : MonoBehaviour {
                 campaignData = new List<LevelGenome>(loadedLevels);
             }
         }
-
-        // Blindagem de Emergência
-        if (campaignData.Count == 0) {
-            Debug.LogWarning("campaign.json não encontrado! A usar Nível de Emergência.");
-            campaignData.Add(new LevelGenome {
-                level_id = 1, theme = "Cyberpunk Neon", seed = 1234,
-                arena = new LevelArena { halfSize = 10f, walls = true },
-                obstacles = new LevelObstacles { count = 50, minScale = 1f, maxScale = 1.5f },
-                rules = new LevelRules { timeLimit = 60f, targetCount = 1, enemyCount = 1, enemySpeed = 2f }
-            });
-        }
-
         if (roster != null && currentPlayer != null && currentPlayer.loadout != null)
             selectedClass = roster.classes.Find(c => c.id == currentPlayer.loadout.selectedClassID);
-
-        if (selectedClass == null) {
-            selectedClass = new CharacterClass {
-                name = "Desconhecido", spriteName = "PlayerSprite",
-                stats = new CharacterStats { speed = 6f, acceleration = 12f, visionRadius = 8f, trapResistance = 1f }
-            };
-        }
         if (currentPlayer != null && campaignData.Count > 0) {
-            // Se o save diz que estamos no Nível 2 (currentCampaignLevel = 2), o index tem de ser 1.
             currentLevelIndex = Mathf.Clamp(currentPlayer.currentCampaignLevel - 1, 0, campaignData.Count - 1);
             Debug.Log($"[Save Loaded] A arrancar a Campanha no Index {currentLevelIndex} (Nível {currentPlayer.currentCampaignLevel})");
         }
-
-        userControl = !Application.isBatchMode;
     }
 
     void SetupAudio() {
@@ -365,8 +361,6 @@ public class GameManager : MonoBehaviour {
         musicSource.loop = true;
         musicSource.volume = 0.4f;
         if (!musicSource.isPlaying) musicSource.Play();
-
-        // 🚨 NOVO: Canal de Efeitos Sonoros (SFX)
         if (sfxSource == null) {
             GameObject sfxObj = new GameObject("SFXPlayer");
             sfxSource = sfxObj.AddComponent<AudioSource>();
@@ -390,23 +384,133 @@ public class GameManager : MonoBehaviour {
         currentTimer -= Time.deltaTime;
         if (currentTimer <= 0) {
             currentTimer = 0;
-            Lose("TEMPO ESGOTADO");
+            isPlaying = false;
+            HandleDamage("TEMPO ESGOTADO");
         }
     }
 
     public void TogglePause() {
         isPaused = !isPaused;
-
         if (isPaused) {
-            Time.timeScale = 0f; // Congela o motor de física e timers
+            Time.timeScale = 0f;
             UIManager.Instance.ShowPauseMenu();
         } else {
-            Time.timeScale = 1f; // Retoma o tempo normal
+            Time.timeScale = 1f;
             UIManager.Instance.ShowHUD();
-            // Bloqueia o rato de volta se for modo humano
             if (userControl) {
                 Cursor.visible = false;
                 Cursor.lockState = CursorLockMode.Locked;
+            }
+        }
+    }
+
+    public void HandleDamage(string reason) {
+        if (finished) return;
+        if (reason.Contains("Inimigo")) livesLostCount++;
+        else if (reason.Contains("TEMPO")) timeoutsCount++;
+        currentPlayer.stats.currentLives--;
+        currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+        if (userControl) {
+            if (Camera.main != null) {
+                var cam = Camera.main.GetComponent<CameraController>();
+                if (cam != null) cam.TriggerShake(0.5f, 0.6f);
+            }
+            PlaySFX("sfx_lose");
+        }
+        if (currentPlayer.stats.currentLives <= 0) {
+            finished = true;
+            isPlaying = false;
+            currentRunSpeedMultiplier = 1f;
+            currentRunVisionBonus = 0f;
+            currentRunTrapMultiplier = 1f;
+            tempPurchasedItems.Clear();
+            int vidasCompradas = Mathf.Max(0, currentPlayer.stats.maxLives - 3);
+            int vidaTotal = selectedClass.stats.baseLives + vidasCompradas;
+            if (userControl) {
+                LevelReport newReport = new LevelReport {
+                    level_id = currentLevel.level_id,
+                    total_rounds = currentLevelAttempts,
+                    wins = 0,
+                    win_rate = 0f,
+                    time_to_win = 0f,
+                    lives_lost = livesLostCount,
+                    timeouts = timeoutsCount,
+                    collected_coins = collectedInRound,
+                    collected_crystals = 0,
+                    powerups_used = powerupsUsedCount
+                };
+
+                // 2. 🚨 O TEU LOG DE DETETIVE (Formato bonito na Consola)
+                Debug.Log($"[📊 METRICS REPORT] Nível {newReport.level_id} Concluído!\n" +
+                          $"↳ Tentativas: {newReport.total_rounds} | Win Rate: {newReport.win_rate:F2}\n" +
+                          $"↳ Tempo de Fuga: {newReport.time_to_win:F2}s | Timeouts: {newReport.timeouts}\n" +
+                          $"↳ Vidas Perdidas: {newReport.lives_lost}\n" +
+                          $"↳ Dinheiro: {newReport.collected_coins} Moedas | {newReport.collected_crystals} Cristais\n" +
+                          $"↳ Powerups Usados: {newReport.powerups_used}");
+
+                // 3. Adiciona o relatório guardado à lista global
+                globalMetrics.level_reports.Add(newReport);
+                SaveMetrics();
+
+                currentPlayer.stats.currentLives = vidaTotal;
+                currentPlayer.currentCampaignLevel = 1;
+                currentPlayer.wallet.totalCoins = 0;
+                collectedInRound = 0;
+                currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+
+                if (UIManager.Instance != null)
+                    UIManager.Instance.ShowEndScreen(false, $"GAME OVER no Nível {currentLevel.level_id}!\nFicaste sem vidas.\nMotivo: {reason}");
+            } else {
+                Debug.Log($"[BOT] Game Over no Nível {currentLevel.level_id}. A voltar ao Cofre para comprar Upgrades...");
+                LevelReport newReport = new LevelReport {
+                    level_id = currentLevel != null ? currentLevel.level_id : 1,
+                    total_rounds = currentLevelAttempts,
+                    wins = 0, win_rate = 0f, time_to_win = 0f,
+                    lives_lost = livesLostCount, timeouts = timeoutsCount,
+                    collected_coins = collectedInRound, collected_crystals = 0,
+                    powerups_used = powerupsUsedCount
+                };
+
+                // 2. 🚨 O TEU LOG DE DETETIVE (Formato bonito na Consola)
+                Debug.Log($"[📊 METRICS REPORT] Nível {newReport.level_id} Concluído!\n" +
+                          $"↳ Tentativas: {newReport.total_rounds} | Win Rate: {newReport.win_rate:F2}\n" +
+                          $"↳ Tempo de Fuga: {newReport.time_to_win:F2}s | Timeouts: {newReport.timeouts}\n" +
+                          $"↳ Vidas Perdidas: {newReport.lives_lost}\n" +
+                          $"↳ Dinheiro: {newReport.collected_coins} Moedas | {newReport.collected_crystals} Cristais\n" +
+                          $"↳ Powerups Usados: {newReport.powerups_used}");
+
+                // 3. Adiciona o relatório guardado à lista global
+                globalMetrics.level_reports.Add(newReport);
+
+                if (roster != null && roster.items != null) {
+                    foreach (var item in roster.items) {
+                        if (currentPlayer.wallet.timeCrystals >= item.cost) {
+                            currentPlayer.wallet.timeCrystals -= item.cost;
+
+                            if (item.id == "item_life") currentPlayer.stats.maxLives++;
+                            else if (item.id == "item_time_boost") {
+                                if (currentPlayer.purchasedUpgrades == null) currentPlayer.purchasedUpgrades = new PlayerUpgrades();
+                                currentPlayer.purchasedUpgrades.startExtraTimeLvl++;
+                            }
+                            else if (item.id == "item_perm_speed") {
+                                if (currentPlayer.purchasedUpgrades == null) currentPlayer.purchasedUpgrades = new PlayerUpgrades();
+                                currentPlayer.purchasedUpgrades.permSpeedLvl++;
+                            }
+                            else if (item.id == "item_trap_reduction") {
+                                if (currentPlayer.purchasedUpgrades == null) currentPlayer.purchasedUpgrades = new PlayerUpgrades();
+                                currentPlayer.purchasedUpgrades.trapReductionLvl++;
+                            }
+                            Debug.Log($"[BOT] Comprou Upgrade Permanente: {item.name}");
+                        }
+                    }
+                }
+                vidaTotal = selectedClass.stats.baseLives + Mathf.Max(0, currentPlayer.stats.maxLives - 3);
+                currentPlayer.stats.currentLives = vidaTotal;
+                currentPlayer.currentCampaignLevel = 1;
+                currentPlayer.wallet.totalCoins = 0;
+                collectedInRound = 0;
+                currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+                QuitGame();
             }
         }
     }
@@ -419,35 +523,48 @@ public class GameManager : MonoBehaviour {
         winsCount++;
         int timeCrystalsEarned = Mathf.FloorToInt(currentTimer);
 
-        // 🚨 LOG MODO DEV (Vai para o Terminal Python)
         Debug.Log($"[ROUND STATS] Nível: {currentLevel.level_id} | Tentativa: {currentLevelAttempts} | Resultado: VITÓRIA | Tempo: {roundPlayTime:F1}s | Moedas: {collectedInRound}");
 
-        string statsMsg = $"Nível {currentLevel.level_id} Concluído!\nTempo Usado: {roundPlayTime:F1}s\nMoedas: {collectedInRound}";
-        // 1. GUARDA O RELATÓRIO DESTE NÍVEL ANTES DE AVANÇAR
-        globalMetrics.level_reports.Add(new LevelReport {
+        LevelReport newReport = new LevelReport {
             level_id = currentLevel != null ? currentLevel.level_id : 1,
             total_rounds = currentLevelAttempts,
-            wins = 1, // Ganhou esta ronda
+            wins = 1,
             win_rate = currentLevelAttempts > 0 ? 1f / currentLevelAttempts : 0f,
-            avg_time_to_goal = currentLevelAttempts > 0 ? (totalPlayTime / currentLevelAttempts) : 0f,
-            stuck_events = stuckCount
-        });
+            time_to_win = roundPlayTime,
+            lives_lost = livesLostCount,
+            timeouts = timeoutsCount,
+            collected_coins = collectedInRound,
+            collected_crystals = timeCrystalsEarned,
+            powerups_used = powerupsUsedCount
+        };
 
-        currentLevelIndex++; // Avança na Campanha
-        if (userControl && currentPlayer != null) {
-            currentPlayer.wallet.totalCoins += collectedInRound; // Enche a carteira!
+        // 2. 🚨 O TEU LOG DE DETETIVE (Formato bonito na Consola)
+        Debug.Log($"[📊 METRICS REPORT] Nível {newReport.level_id} Concluído!\n" +
+                  $"↳ Tentativas: {newReport.total_rounds} | Win Rate: {newReport.win_rate:F2}\n" +
+                  $"↳ Tempo de Fuga: {newReport.time_to_win:F2}s | Timeouts: {newReport.timeouts}\n" +
+                  $"↳ Vidas Perdidas: {newReport.lives_lost}\n" +
+                  $"↳ Dinheiro: {newReport.collected_coins} Moedas | {newReport.collected_crystals} Cristais\n" +
+                  $"↳ Powerups Usados: {newReport.powerups_used}");
+
+        // 3. Adiciona o relatório guardado à lista global
+        globalMetrics.level_reports.Add(newReport);
+        currentLevelIndex++;
+        if (currentPlayer != null) {
+            currentPlayer.wallet.totalCoins += collectedInRound;
+            currentPlayer.wallet.timeCrystals += timeCrystalsEarned;
             currentPlayer.stats.totalWins++;
-            currentPlayer.currentCampaignLevel = Mathf.Max(currentPlayer.currentCampaignLevel, currentLevelIndex + 1);
-            currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
-            SaveMetrics();
+            currentPlayer.currentCampaignLevel++;
+            currentPlayer.Save(System.IO.Path.Combine(Application.dataPath, "..", "player_save.json"));
+            if (userControl) {
+                SaveMetrics();
+            }
         }
 
-        // Limpa as variáveis para o NOVO nível
         currentLevelAttempts = 0;
-        stuckCount = 0;
+        livesLostCount = 0;
         totalPlayTime = 0f;
+        timeoutsCount = 0;
 
-        // 2. LÓGICA DE CONTINUAÇÃO
         if (currentLevelIndex >= campaignData.Count) {
             globalMetrics.campaign_completed = true; // 🎉 SUCESSO TOTAL!
             globalMetrics.bottleneck_level = 0;
@@ -456,79 +573,59 @@ public class GameManager : MonoBehaviour {
                 SaveMetrics();
                 if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(true, "CAMPANHA CONCLUÍDA! És uma Lenda!");
             }
-            else QuitGame();
+            else QuitGame(); // O Bot completou a campanha, fecha o jogo para relatar ao Python!
         } else {
             if (userControl && UIManager.Instance != null) {
-                string rewardMsg = $"Nível Concluído!\n\nSobreviveste com {timeCrystalsEarned}s de sobra.\nConvertido em {timeCrystalsEarned} Cristais de Tempo 💠!";
-                UIManager.Instance.ShowEndScreen(true, rewardMsg);
-            }
-            else Invoke("StartNewRun", 0.05f);
-        }
-    }
-
-    // 💀 QUANDO MORRES, REINICIAS O MESMO NÍVEL (O index não sobe)
-    public void OnAgentCaught() {
-        if (finished) return;
-        PlaySFX("sfx_lose");
-        finished = true;
-        isPlaying = false;
-        stuckCount++;
-        Debug.Log($"[ROUND STATS] Nível: {currentLevel.level_id} | Tentativa: {currentLevelAttempts} | Resultado: MORTO | Sobreviveu: {roundPlayTime:F1}s | Moedas: {collectedInRound}");
-        if (!userControl) {
-            // LÓGICA DO BOT (Testador)
-            if (currentLevelAttempts >= botMaxAttempts) {
-                Debug.Log($"[BOT] Nível {currentLevel.level_id} é impossível! A abortar...");
-                QuitGame(); // Fecha para o Python corrigir o nível!
+                if (currentLevel.level_id == 3 || currentLevel.level_id == 6 || currentLevel.level_id == 9) {
+                    UIManager.Instance.ShowSafeRoomScreen();
+                } else {
+                    string rewardMsg = $"Nível Concluído!\n\nSobreviveste com {timeCrystalsEarned}s de sobra.\nConvertido em {timeCrystalsEarned} Cristais de Tempo 💠!";
+                    UIManager.Instance.ShowEndScreen(true, rewardMsg);
+                }
             } else {
-                Invoke("StartNewRun", 0.05f); // Bot tenta outra vez rápido
-            }
-        } else {
-            if (Camera.main != null) {
-                var cam = Camera.main.GetComponent<CameraController>();
-                if (cam != null) cam.TriggerShake(0.5f, 0.6f);
-            }
-            currentPlayer.wallet.totalCoins += collectedInRound;
-            currentPlayer.stats.currentLives--; // Perde uma vida!
+                int completedLevelId = currentLevel != null ? currentLevel.level_id : 1;
 
-            if (currentPlayer.stats.currentLives <= 0) {
-                // 🚨 NOVO: Regista a falha nas métricas antes de resetar as vidas!
-                globalMetrics.level_reports.Add(new LevelReport {
-                    level_id = currentLevel.level_id,
-                    total_rounds = currentLevelAttempts,
-                    wins = 0,
-                    win_rate = 0f,
-                    avg_time_to_goal = currentLevelAttempts > 0 ? (totalPlayTime / currentLevelAttempts) : 0f,
-                    stuck_events = stuckCount
-                });
-                SaveMetrics(); // Grava no disco!
+                if (completedLevelId == 3 || completedLevelId == 6 || completedLevelId == 9) {
+                    if (safeRoomCatalog != null && safeRoomCatalog.safeRoomItems != null) {
+                        foreach (var item in safeRoomCatalog.safeRoomItems) {
 
-                currentPlayer.stats.currentLives = currentPlayer.stats.maxLives;
-                currentPlayer.currentCampaignLevel = 1;
-                currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
+                            // O Bot verifica se tem dinheiro
+                            if (currentPlayer.wallet.totalCoins >= item.cost) {
+                                currentPlayer.wallet.totalCoins -= item.cost;
 
-                if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"GAME OVER no Nível {currentLevel.level_id}!\nFicaste sem vidas.");
-            } else {
-                currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
-                if (UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"Morreste no Nível {currentLevel.level_id}!\nVidas restantes: {currentPlayer.stats.currentLives}");
+                                // 🚨 1. NOVO: REGISTA A COMPRA NA LISTA PARA O HUD
+                                if (tempPurchasedItems == null) tempPurchasedItems = new System.Collections.Generic.List<ItemPurchase>();
+                                var purchase = tempPurchasedItems.Find(p => p.itemID == item.id);
+                                if (purchase != null) {
+                                    purchase.quantity++;
+                                } else {
+                                    tempPurchasedItems.Add(new ItemPurchase { itemID = item.id, quantity = 1 });
+                                }
+
+                                // 2. APLICA A MECÂNICA NO JOGO
+                                if (item.effectType == "SpeedBoost") {
+                                    currentRunSpeedMultiplier *= item.effectValue;
+                                } else if (item.effectType == "VisionBoost") {
+                                    currentRunVisionBonus += item.effectValue;
+                                } else if (item.effectType == "TrapReduction") {
+                                    currentRunTrapMultiplier *= item.effectValue;
+                                }
+
+                                Debug.Log($"[BOT] Entrou na Safe Room e comprou: {item.name}");
+
+                                // 🚨 3. NOVO: FORÇA A ATUALIZAÇÃO DO ECRÃ
+                                if (UIManager.Instance != null && UIManager.Instance.currentState == UIManager.UIState.HUD) {
+                                    UIManager.Instance.RefreshActiveBuffsHUD();
+                                }
+
+                                break; // O Bot só compra 1 item e sai (mantive o teu break)
+                            }
+                        }
+                    }
+                }
+                Invoke("StartNewRun", 0.05f);
             }
         }
-    }
-
-    void Lose(string reason) {
-        if (finished) return;
-        PlaySFX("sfx_lose");
-        Debug.Log("Perdeu!");
-        finished = true;
-        isPlaying = false;
-        timeoutsCount++;
-        Debug.Log($"[ROUND STATS] Nível: {currentLevel.level_id} | Tentativa: {currentLevelAttempts} | Resultado: TIMEOUT | Sobreviveu: {roundPlayTime:F1}s | Moedas: {collectedInRound}");
-        if (userControl && currentPlayer != null) {
-            currentPlayer.wallet.totalCoins += collectedInRound;
-            currentPlayer.Save(Path.Combine(Application.dataPath, "..", "player_save.json"));
-        }
-
-        if (userControl && UIManager.Instance != null) UIManager.Instance.ShowEndScreen(false, $"Falhaste o Nível {currentLevel.level_id}!\nMotivo: {reason}");
-        else Invoke("StartNewRun", 0.05f);
     }
 
    void CleanupScene() {
@@ -572,17 +669,20 @@ public class GameManager : MonoBehaviour {
 
     public void UI_PlayNextLevel() {
         if (UIManager.Instance != null) {
-            UIManager.Instance.ShowHUD(); // Volta a colocar o Timer e as Moedas no ecrã!
+            UIManager.Instance.ShowHUD();
         }
         StartNewRun();
     }
 
     public void UI_ReturnToMenu() {
-        Time.timeScale = 1f; // 🚨 Garante que o jogo não fica "congelado" no menu
+        Time.timeScale = 1f;
         isPaused = false;
+        currentLevelIndex = 0;
+        currentLevelAttempts = 0;
         if (UIManager.Instance != null) {
             UIManager.Instance.ShowTitleScreen(); // Abre o Menu Principal
         }
+        CleanupScene();
         CleanupScene();
         if (agent != null) Destroy(agent.gameObject);
         isPlaying = false;
@@ -592,8 +692,6 @@ public class GameManager : MonoBehaviour {
 
     public void SaveMetrics() {
         globalMetrics.is_human = userControl;
-
-        // Se não tivermos chegado ao fim da campanha, o gargalo é o nível atual
         if (!globalMetrics.campaign_completed) {
             globalMetrics.bottleneck_level = currentLevel != null ? currentLevel.level_id : 1;
         }
@@ -605,7 +703,6 @@ public class GameManager : MonoBehaviour {
 
     void QuitGame() {
         if (currentPlayer != null && userControl) {
-            currentPlayer.wallet.totalCoins += totalCollectedGame;
             currentPlayer.stats.totalTrapsHit += trapsHitCount;
             currentPlayer.stats.totalWins += winsCount;
             currentPlayer.currentCampaignLevel = Mathf.Max(currentPlayer.currentCampaignLevel, currentLevelIndex + 1);
@@ -615,22 +712,9 @@ public class GameManager : MonoBehaviour {
         // Se o jogo acabou e a campanha não foi concluída, foi porque bateu num gargalo (Game Over)
         if (!globalMetrics.campaign_completed && !userControl) {
             globalMetrics.bottleneck_level = currentLevel != null ? currentLevel.level_id : 1;
-
-            // Adiciona o relatório do nível onde falhou
-            globalMetrics.level_reports.Add(new LevelReport {
-                level_id = globalMetrics.bottleneck_level,
-                total_rounds = currentLevelAttempts,
-                wins = 0,
-                win_rate = 0f, // 0 vitórias
-                avg_time_to_goal = currentLevelAttempts > 0 ? (totalPlayTime / currentLevelAttempts) : 0f,
-                stuck_events = stuckCount
-            });
         } else if (!userControl) {
-            // O Bot terminou a campanha
             SaveMetrics();
         }
-
-        // GRAVA O MEGA RELATÓRIO NO METRICS.JSON
         File.WriteAllText(Path.Combine(Application.dataPath, "..", "metrics.json"), JsonUtility.ToJson(globalMetrics, true));
 
         #if UNITY_EDITOR

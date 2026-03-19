@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <Style src="SafeRoomStyle.uss" />
+
+    <ui:VisualElement class="bg-overlay">
+        <ui:VisualElement class="end-panel">
+            <ui:Label text="ZONA SEGURA" class="title-text" />
+            <ui:Label name="txt-desc" text="Gasta as tuas moedas antes de desceres mais fundo." class="desc-text" />
+            <ui:Label name="txt-coins" text="Moedas: 0" class="coins-text" />
+
+            <ui:VisualElement class="divider" />
+
+            <ui:VisualElement name="items-container" class="cards-container" />
+
+            <ui:VisualElement class="divider" />
+
+            <ui:Button name="btn-continue" text="AVANÇAR PARA O PRÓXIMO NÍVEL" class="btn" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

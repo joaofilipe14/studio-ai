@@ -9,4 +9,4 @@ async def evolve(request: GameEvolutionRequest):
     genome_dict = request.current_genome.dict()
     if request.is_human:
         return evolve_human_genome(request.config, request.metrics, genome_dict)
-    return evolve_bot_genome(request.config, request.metrics, genome_dict)
+    return evolve_bot_genome(request.config, request.metrics, genome_dict, current_roster)

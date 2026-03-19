@@ -1,7 +1,29 @@
 [
   {
     "level_id": 1,
-    "seed": 76901,
+    "seed": 16629,
+    "theme": "Cyberpunk Neon",
+    "arena": {
+      "halfSize": 12.0,
+      "walls": true
+    },
+    "obstacles": {
+      "count": 30,
+      "minScale": 1.0,
+      "maxScale": 1.85
+    },
+    "rules": {
+      "timeLimit": 40.0,
+      "targetCount": 2,
+      "enemyCount": 3,
+      "enemySpeed": 2.5,
+      "trapCount": 2,
+      "trapPenalty": 3.2
+    }
+  },
+  {
+    "level_id": 2,
+    "seed": 80636,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
@@ -10,118 +32,108 @@
     "obstacles": {
       "count": 35,
       "minScale": 1.0,
-      "maxScale": 1.85
-    },
-    "rules": {
-      "timeLimit": 25.0,
-      "targetCount": 1,
-      "enemyCount": 2,
-      "enemySpeed": 2.3,
-      "powerUpCount": 15,
-      "powerUpType": "Mixed",
-      "trapCount": 3,
-      "trapPenalty": 3.2
-    }
-  },
-  {
-    "level_id": 2,
-    "seed": 96088,
-    "theme": "Cyberpunk Neon",
-    "arena": {
-      "halfSize": 12.0,
-      "walls": true
-    },
-    "obstacles": {
-      "count": 65,
-      "minScale": 1.0,
       "maxScale": 1.9
     },
     "rules": {
-      "timeLimit": 60.0,
+      "timeLimit": 40.0,
       "targetCount": 3,
-      "enemyCount": 4,
-      "enemySpeed": 2.8,
-      "powerUpCount": 6,
-      "powerUpType": "Mixed",
-      "trapCount": 5,
-      "trapPenalty": 3.4
+      "enemyCount": 3,
+      "enemySpeed": 2.6,
+      "trapCount": 2,
+      "trapPenalty": 5.0
     }
   },
   {
     "level_id": 3,
-    "seed": 65260,
+    "seed": 68556,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
       "walls": true
     },
     "obstacles": {
-      "count": 75,
+      "count": 58,
       "minScale": 1.0,
       "maxScale": 1.95
     },
     "rules": {
-      "timeLimit": 60.0,
+      "timeLimit": 35.0,
       "targetCount": 1,
       "enemyCount": 4,
-      "enemySpeed": 3.8,
-      "powerUpCount": 6,
-      "powerUpType": "Mixed",
-      "trapCount": 6,
+      "enemySpeed": 2.4,
+      "trapCount": 3,
       "trapPenalty": 3.6
     }
   },
   {
     "level_id": 4,
-    "seed": 46300,
+    "seed": 50768,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
       "walls": true
     },
     "obstacles": {
-      "count": 85,
+      "count": 45,
       "minScale": 1.0,
       "maxScale": 2.0
     },
     "rules": {
-      "timeLimit": 150.0,
+      "timeLimit": 35.0,
       "targetCount": 4,
-      "enemyCount": 5,
-      "enemySpeed": 3.8,
-      "powerUpCount": 7,
-      "powerUpType": "Mixed",
-      "trapCount": 7,
+      "enemyCount": 4,
+      "enemySpeed": 3.0,
+      "trapCount": 3,
       "trapPenalty": 3.8
     }
   },
   {
     "level_id": 5,
-    "seed": 79792,
+    "seed": 26742,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
       "walls": true
     },
     "obstacles": {
-      "count": 90,
+      "count": 78,
       "minScale": 1.0,
       "maxScale": 2.05
     },
     "rules": {
-      "timeLimit": 145.0,
+      "timeLimit": 30.0,
       "targetCount": 1,
       "enemyCount": 6,
-      "enemySpeed": 3.5,
-      "powerUpCount": 7,
-      "powerUpType": "Mixed",
-      "trapCount": 8,
+      "enemySpeed": 3.7,
+      "trapCount": 7,
       "trapPenalty": 4.0
     }
   },
   {
     "level_id": 6,
-    "seed": 98032,
+    "seed": 76632,
+    "theme": "Cyberpunk Neon",
+    "arena": {
+      "halfSize": 12.0,
+      "walls": true
+    },
+    "obstacles": {
+      "count": 47,
+      "minScale": 1.0,
+      "maxScale": 2.1
+    },
+    "rules": {
+      "timeLimit": 30.0,
+      "targetCount": 5,
+      "enemyCount": 2,
+      "enemySpeed": 2.8,
+      "trapCount": 2,
+      "trapPenalty": 4.2
+    }
+  },
+  {
+    "level_id": 7,
+    "seed": 63845,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
@@ -130,22 +142,42 @@
     "obstacles": {
       "count": 95,
       "minScale": 1.0,
-      "maxScale": 2.1
+      "maxScale": 2.15
     },
     "rules": {
-      "timeLimit": 150.0,
-      "targetCount": 5,
-      "enemyCount": 7,
-      "enemySpeed": 4.8,
-      "powerUpCount": 8,
-      "powerUpType": "Mixed",
+      "timeLimit": 25.0,
+      "targetCount": 1,
+      "enemyCount": 6,
+      "enemySpeed": 3.8,
       "trapCount": 9,
-      "trapPenalty": 4.2
+      "trapPenalty": 4.4
     }
   },
   {
-    "level_id": 7,
-    "seed": 74606,
+    "level_id": 8,
+    "seed": 63973,
+    "theme": "Cyberpunk Neon",
+    "arena": {
+      "halfSize": 12.0,
+      "walls": true
+    },
+    "obstacles": {
+      "count": 75,
+      "minScale": 1.0,
+      "maxScale": 2.2
+    },
+    "rules": {
+      "timeLimit": 25.0,
+      "targetCount": 6,
+      "enemyCount": 3,
+      "enemySpeed": 4.0,
+      "trapCount": 3,
+      "trapPenalty": 2.8
+    }
+  },
+  {
+    "level_id": 9,
+    "seed": 45102,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
@@ -154,87 +186,36 @@
     "obstacles": {
       "count": 135,
       "minScale": 1.0,
-      "maxScale": 2.15
-    },
-    "rules": {
-      "timeLimit": 160.0,
-      "targetCount": 1,
-      "enemyCount": 8,
-      "enemySpeed": 4.5,
-      "powerUpCount": 8,
-      "powerUpType": "Mixed",
-      "trapCount": 10,
-      "trapPenalty": 4.4
-    }
-  },
-  {
-    "level_id": 8,
-    "seed": 33276,
-    "theme": "Cyberpunk Neon",
-    "arena": {
-      "halfSize": 12.0,
-      "walls": true
-    },
-    "obstacles": {
-      "count": 175,
-      "minScale": 1.0,
-      "maxScale": 2.2
-    },
-    "rules": {
-      "timeLimit": 180.0,
-      "targetCount": 6,
-      "enemyCount": 9,
-      "enemySpeed": 4.5,
-      "powerUpCount": 7,
-      "powerUpType": "Mixed",
-      "trapCount": 8,
-      "trapPenalty": 3.5
-    }
-  },
-  {
-    "level_id": 9,
-    "seed": 39489,
-    "theme": "Cyberpunk Neon",
-    "arena": {
-      "halfSize": 12.0,
-      "walls": true
-    },
-    "obstacles": {
-      "count": 164,
-      "minScale": 1.0,
       "maxScale": 2.25
     },
     "rules": {
-      "timeLimit": 120.0,
+      "timeLimit": 20.0,
       "targetCount": 1,
       "enemyCount": 9,
-      "enemySpeed": 3.8,
-      "powerUpCount": 6,
-      "powerUpType": "Mixed",
-      "trapCount": 7,
+      "enemySpeed": 3.4,
+      "trapCount": 6,
       "trapPenalty": 4.8
     }
   },
   {
     "level_id": 10,
-    "seed": 74564,
+    "seed": 75834,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
       "walls": true
     },
     "obstacles": {
-      "count": 200,
+      "count": 160,
       "minScale": 1.0,
       "maxScale": 2.3
     },
     "rules": {
-      "timeLimit": 60.0,
+      "timeLimit": 20.0,
       "targetCount": 7,
-      "enemyCount": 15,
-      "enemySpeed": 8.0,
-      "powerUpCount": 10,
-      "trapCount": 20,
+      "enemyCount": 7,
+      "enemySpeed": 4.5,
+      "trapCount": 15,
       "trapPenalty": 5.0
     }
   }

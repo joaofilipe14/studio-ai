@@ -53,7 +53,7 @@ def record_and_compile():
     print(f"[green]A lançar o motor de jogo no Modo Trailer...[/green]")
     cmd = [
         exe_path,
-        "-trailerMode",
+        "-botMode",
         "-trailerFolder", os.path.abspath(frames_dir),  # 🚨 NOVO: Dizemos ao Unity exatamente onde gravar
         "-screen-width", "1280",
         "-screen-height", "720",
