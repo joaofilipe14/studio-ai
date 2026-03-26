@@ -2,55 +2,55 @@
   "safeRoomItems": [
     {
       "id": "temp_speed_common",
-      "name": "Bebida Energética",
-      "description": "+10% Velocidade até ao fim da Run",
+      "name": "Bebida Energ\u00e9tica",
+      "description": "+10% Velocidade at\u00e9 ao fim da Run",
       "rarity": "Common",
-      "cost": 5,
+      "cost": 6,
       "effectType": "SpeedBoost",
       "effectValue": 1.1
     },
     {
       "id": "temp_speed_uncommon",
-      "name": "Injeção de Adrenalina",
-      "description": "+25% Velocidade até ao fim da Run",
+      "name": "Inje\u00e7\u00e3o de Adrenalina",
+      "description": "+25% Velocidade at\u00e9 ao fim da Run",
       "rarity": "Uncommon",
-      "cost": 10,
+      "cost": 12,
       "effectType": "SpeedBoost",
       "effectValue": 1.25
     },
     {
       "id": "temp_speed_rare",
-      "name": "Pernas Cibernéticas",
-      "description": "+50% Velocidade até ao fim da Run",
+      "name": "Pernas Cibern\u00e9ticas",
+      "description": "+50% Velocidade at\u00e9 ao fim da Run",
       "rarity": "Rare",
-      "cost": 15,
+      "cost": 18,
       "effectType": "SpeedBoost",
       "effectValue": 1.5
     },
     {
       "id": "temp_vision_common",
       "name": "Pilhas Novas",
-      "description": "+2m de Visão na Lanterna",
+      "description": "+2m de Vis\u00e3o na Lanterna",
       "rarity": "Common",
-      "cost": 5,
+      "cost": 6,
       "effectType": "VisionBoost",
       "effectValue": 2.0
     },
     {
       "id": "temp_vision_uncommon",
-      "name": "Lanterna Tática",
-      "description": "+5m de Visão na Lanterna",
+      "name": "Lanterna T\u00e1tica",
+      "description": "+5m de Vis\u00e3o na Lanterna",
       "rarity": "Uncommon",
-      "cost": 10,
+      "cost": 12,
       "effectType": "VisionBoost",
       "effectValue": 5.0
     },
     {
       "id": "temp_vision_rare",
-      "name": "Olho Biónico de Visão Noturna",
-      "description": "+12m de Visão na Lanterna",
+      "name": "Olho Bi\u00f3nico de Vis\u00e3o Noturna",
+      "description": "+12m de Vis\u00e3o na Lanterna",
       "rarity": "Rare",
-      "cost": 15,
+      "cost": 18,
       "effectType": "VisionBoost",
       "effectValue": 12.0
     },
@@ -59,7 +59,7 @@
       "name": "Mapa de Minas",
       "description": "-15% de Armadilhas no resto da Run",
       "rarity": "Common",
-      "cost": 5,
+      "cost": 6,
       "effectType": "TrapReduction",
       "effectValue": 0.85
     },
@@ -68,7 +68,7 @@
       "name": "Rastreador de Perigo",
       "description": "-35% de Armadilhas no resto da Run",
       "rarity": "Uncommon",
-      "cost": 10,
+      "cost": 12,
       "effectType": "TrapReduction",
       "effectValue": 0.65
     },
@@ -77,9 +77,9 @@
       "name": "Pulseira EMP",
       "description": "-60% de Armadilhas no resto da Run",
       "rarity": "Rare",
-      "cost": 15,
+      "cost": 18,
       "effectType": "TrapReduction",
-      "effectValue": 0.40
+      "effectValue": 0.4
     }
   ]
 }

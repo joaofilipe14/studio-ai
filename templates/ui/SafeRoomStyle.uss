@@ -107,5 +107,29 @@
 .btn { width: 400px; height: 50px; font-size: 18px; -unity-font-style: bold; color: white; background-color: rgba(30, 30, 35, 0.9); border-width: 0; border-bottom-width: 4px; border-bottom-color: rgb(50, 255, 100); border-radius: 8px; transition-duration: 0.2s; margin-top: 10px; }
 .btn:hover { background-color: rgba(50, 255, 100, 0.15); scale: 1.05; }
 
-.icon-speedboost { background-image: resource("Sprites/SpeedBoostIcon"); }
-.icon-visionboost { background-image: resource("Sprites/VisionBoostIcon"); }
+/* ==========================================
+   GERADO AUTOMATICAMENTE POR SYNC_ASSETS.PY
+   ========================================== */
+.icon-item-life { background-image: resource("Sprites/ItemLifeIcon"); }
+.icon-item-time-boost { background-image: resource("Sprites/ItemTimeBoostIcon"); }
+.icon-item-luck-boost { background-image: resource("Sprites/ItemLuckBoostIcon"); }
+.icon-item-perm-speed { background-image: resource("Sprites/ItemPermSpeedIcon"); }
+.icon-item-trap-reduction { background-image: resource("Sprites/ItemTrapReductionIcon"); }
+.icon-temp-speed-common,
+.icon-temp-speed-uncommon,
+.icon-temp-speed-rare {
+    background-image: resource("Sprites/icon-temp-speed");
+}
+.icon-temp-vision-common,
+.icon-temp-vision-uncommon,
+.icon-temp-vision-rare {
+    background-image: resource("Sprites/icon-temp-vision");
+}
+.icon-temp-trap-common,
+.icon-temp-trap-uncommon,
+.icon-temp-trap-rare {
+    background-image: resource("Sprites/icon-temp-trap");
+}
+.icon-explorer { background-image: resource("Sprites/ExplorerSprite"); }
+.icon-ninja { background-image: resource("Sprites/NinjaSprite"); }
+.icon-tank { background-image: resource("Sprites/TankSprite"); }

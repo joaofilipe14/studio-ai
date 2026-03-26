@@ -23,7 +23,8 @@ def load_all_recipes():
     global ASSET_RECIPES
     ASSET_RECIPES.clear()
 
-    # 1. Carregar as texturas e itens base
+    # Como o sync_assets.py agora trata de TUDO,
+    # o nosso gerador só precisa de ler o ficheiro centralizado!
     if os.path.exists(RECIPES_PATH):
         try:
             with open(RECIPES_PATH, "r", encoding="utf-8") as f:
@@ -31,34 +32,6 @@ def load_all_recipes():
                 ASSET_RECIPES.update(base_recipes)
         except Exception as e:
             print(f"[red]Erro ao ler {RECIPES_PATH}: {e}[/red]")
-
-    # 2. Carregar as personagens e injetar no mesmo dicionário
-    if os.path.exists(ROSTER_PATH):
-        try:
-            with open(ROSTER_PATH, "r", encoding="utf-8") as f:
-                roster = json.load(f)
-
-            for char_class in roster.get("classes", []):
-                char_id = char_class.get("id", "Unknown")
-                char_name = char_class.get("name", "Hero")
-                char_desc = char_class.get("description", "main character")
-
-                # Garante que o ficheiro termina em .png
-                sprite_filename = char_class.get("spriteName", f"{char_id}Sprite")
-                if not sprite_filename.endswith(".png"):
-                    sprite_filename += ".png"
-
-                # Cria o prompt injetando o nome e descrição do JSON!
-                prompt = f"pixel art sprite, {{theme}} {char_name}, {char_desc}, top-down perspective, full body, isolated on pure white background, flat colors"
-
-                ASSET_RECIPES[f"Class: {char_id}"] = {
-                    "file": sprite_filename,
-                    "is_sprite": True,
-                    "prompt": prompt
-                }
-        except Exception as e:
-            print(f"[red]Erro ao ler {ROSTER_PATH}: {e}[/red]")
-
 load_all_recipes()
 
 def check_apis():

@@ -8,8 +8,6 @@ public class GameObjective : MonoBehaviour {
 
     void Update() {
         if (GameManager.Instance == null || GameManager.Instance.agent == null) return;
-
-        // Se o agente pisar a exata mesma célula que este objeto
         if (GameManager.Instance.agent.gridPos == gridPos) {
 
             if (type == ObjectiveType.ExitPortal) {
@@ -19,7 +17,6 @@ public class GameObjective : MonoBehaviour {
                 Debug.Log("Moeda obtida!");
                 GameManager.Instance.OnCollect(gridPos);
             }
-
             Destroy(gameObject); // Desaparece do mapa
         }
     }

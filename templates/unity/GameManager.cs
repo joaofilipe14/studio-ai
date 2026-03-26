@@ -210,12 +210,20 @@ public class GameManager : MonoBehaviour {
 
         if (finalTraps > 0)
             LevelSpawner.SpawnTraps(world, rng, finalTraps, currentLevel.rules.trapPenalty);
-
-        if (userControl) {
-            Cursor.visible = false;
-            Cursor.lockState = CursorLockMode.Locked;
+        if (currentLevel.level_id == 1 && !currentPlayer.stats.hasSeenTutorial && userControl) {
+            Debug.Log($"TutorialManager");
+            TutorialManager.ShowTutorial();
+            currentPlayer.stats.hasSeenTutorial = true;
+            string savePath = System.IO.Path.Combine(Application.dataPath, "..", "player_save.json");
+            currentPlayer.Save(savePath);
+        } else {
+            Debug.Log($"!TutorialManager");
+            if (userControl) {
+                UIManager.Instance.ShowHUD();
+                Cursor.visible = false;
+                Cursor.lockState = CursorLockMode.Locked;
+            }
         }
-
         if (isTrailerMode) {
             if (UIManager.Instance != null) UIManager.Instance.HideUIForTrailer();
 
@@ -395,11 +403,12 @@ public class GameManager : MonoBehaviour {
             Time.timeScale = 0f;
             UIManager.Instance.ShowPauseMenu();
         } else {
+            Debug.Log("!TogglePause");
             Time.timeScale = 1f;
             UIManager.Instance.ShowHUD();
             if (userControl) {
-                Cursor.visible = false;
-                Cursor.lockState = CursorLockMode.Locked;
+               // Cursor.visible = false;
+                //Cursor.lockState = CursorLockMode.Locked;
             }
         }
     }
@@ -439,8 +448,6 @@ public class GameManager : MonoBehaviour {
                     collected_crystals = 0,
                     powerups_used = powerupsUsedCount
                 };
-
-                // 2. 🚨 O TEU LOG DE DETETIVE (Formato bonito na Consola)
                 Debug.Log($"[📊 METRICS REPORT] Nível {newReport.level_id} Concluído!\n" +
                           $"↳ Tentativas: {newReport.total_rounds} | Win Rate: {newReport.win_rate:F2}\n" +
                           $"↳ Tempo de Fuga: {newReport.time_to_win:F2}s | Timeouts: {newReport.timeouts}\n" +
@@ -470,8 +477,6 @@ public class GameManager : MonoBehaviour {
                     collected_coins = collectedInRound, collected_crystals = 0,
                     powerups_used = powerupsUsedCount
                 };
-
-                // 2. 🚨 O TEU LOG DE DETETIVE (Formato bonito na Consola)
                 Debug.Log($"[📊 METRICS REPORT] Nível {newReport.level_id} Concluído!\n" +
                           $"↳ Tentativas: {newReport.total_rounds} | Win Rate: {newReport.win_rate:F2}\n" +
                           $"↳ Tempo de Fuga: {newReport.time_to_win:F2}s | Timeouts: {newReport.timeouts}\n" +
@@ -479,28 +484,35 @@ public class GameManager : MonoBehaviour {
                           $"↳ Dinheiro: {newReport.collected_coins} Moedas | {newReport.collected_crystals} Cristais\n" +
                           $"↳ Powerups Usados: {newReport.powerups_used}");
 
-                // 3. Adiciona o relatório guardado à lista global
                 globalMetrics.level_reports.Add(newReport);
-
                 if (roster != null && roster.items != null) {
+                    if (currentPlayer.purchasedUpgrades == null) currentPlayer.purchasedUpgrades = new PlayerUpgrades();
+                    if (currentPlayer.purchasedItems == null) currentPlayer.purchasedItems = new System.Collections.Generic.List<ItemPurchase>();
+
                     foreach (var item in roster.items) {
-                        if (currentPlayer.wallet.timeCrystals >= item.cost) {
+                        // 1. O Bot verifica se já atingiu o limite máximo deste item!
+                        bool isMaxedOut = false;
+                        if (item.id == "item_life" && currentPlayer.stats.maxLives >= 7) isMaxedOut = true;
+                        else if (item.id == "item_perm_speed" && currentPlayer.purchasedUpgrades.permSpeedLvl >= 5) isMaxedOut = true;
+                        else if (item.id == "item_trap_reduction" && currentPlayer.purchasedUpgrades.trapReductionLvl >= 5) isMaxedOut = true;
+                        else if (item.id == "item_time_boost" && currentPlayer.purchasedUpgrades.startExtraTimeLvl >= 5) isMaxedOut = true;
+
+                        // 2. Se tiver dinheiro e não estiver no máximo, COMPRA!
+                        if (!isMaxedOut && currentPlayer.wallet.timeCrystals >= item.cost) {
                             currentPlayer.wallet.timeCrystals -= item.cost;
 
+                            // Aplica a melhoria real na física
                             if (item.id == "item_life") currentPlayer.stats.maxLives++;
-                            else if (item.id == "item_time_boost") {
-                                if (currentPlayer.purchasedUpgrades == null) currentPlayer.purchasedUpgrades = new PlayerUpgrades();
-                                currentPlayer.purchasedUpgrades.startExtraTimeLvl++;
-                            }
-                            else if (item.id == "item_perm_speed") {
-                                if (currentPlayer.purchasedUpgrades == null) currentPlayer.purchasedUpgrades = new PlayerUpgrades();
-                                currentPlayer.purchasedUpgrades.permSpeedLvl++;
-                            }
-                            else if (item.id == "item_trap_reduction") {
-                                if (currentPlayer.purchasedUpgrades == null) currentPlayer.purchasedUpgrades = new PlayerUpgrades();
-                                currentPlayer.purchasedUpgrades.trapReductionLvl++;
-                            }
-                            Debug.Log($"[BOT] Comprou Upgrade Permanente: {item.name}");
+                            else if (item.id == "item_time_boost") currentPlayer.purchasedUpgrades.startExtraTimeLvl++;
+                            else if (item.id == "item_perm_speed") currentPlayer.purchasedUpgrades.permSpeedLvl++;
+                            else if (item.id == "item_trap_reduction") currentPlayer.purchasedUpgrades.trapReductionLvl++;
+
+                            // Regista a compra na lista visual (para sincronizar com UI e Saves)
+                            var purchase = currentPlayer.purchasedItems.Find(p => p.itemID == item.id);
+                            if (purchase != null) purchase.quantity++;
+                            else currentPlayer.purchasedItems.Add(new ItemPurchase { itemID = item.id, quantity = 1 });
+
+                            Debug.Log($"[BOT] Comprou Upgrade Permanente: {item.name} | Cristais Restantes: {currentPlayer.wallet.timeCrystals}");
                         }
                     }
                 }
@@ -584,16 +596,11 @@ public class GameManager : MonoBehaviour {
                 }
             } else {
                 int completedLevelId = currentLevel != null ? currentLevel.level_id : 1;
-
                 if (completedLevelId == 3 || completedLevelId == 6 || completedLevelId == 9) {
                     if (safeRoomCatalog != null && safeRoomCatalog.safeRoomItems != null) {
                         foreach (var item in safeRoomCatalog.safeRoomItems) {
-
-                            // O Bot verifica se tem dinheiro
                             if (currentPlayer.wallet.totalCoins >= item.cost) {
                                 currentPlayer.wallet.totalCoins -= item.cost;
-
-                                // 🚨 1. NOVO: REGISTA A COMPRA NA LISTA PARA O HUD
                                 if (tempPurchasedItems == null) tempPurchasedItems = new System.Collections.Generic.List<ItemPurchase>();
                                 var purchase = tempPurchasedItems.Find(p => p.itemID == item.id);
                                 if (purchase != null) {
@@ -601,8 +608,6 @@ public class GameManager : MonoBehaviour {
                                 } else {
                                     tempPurchasedItems.Add(new ItemPurchase { itemID = item.id, quantity = 1 });
                                 }
-
-                                // 2. APLICA A MECÂNICA NO JOGO
                                 if (item.effectType == "SpeedBoost") {
                                     currentRunSpeedMultiplier *= item.effectValue;
                                 } else if (item.effectType == "VisionBoost") {
@@ -610,10 +615,7 @@ public class GameManager : MonoBehaviour {
                                 } else if (item.effectType == "TrapReduction") {
                                     currentRunTrapMultiplier *= item.effectValue;
                                 }
-
                                 Debug.Log($"[BOT] Entrou na Safe Room e comprou: {item.name}");
-
-                                // 🚨 3. NOVO: FORÇA A ATUALIZAÇÃO DO ECRÃ
                                 if (UIManager.Instance != null && UIManager.Instance.currentState == UIManager.UIState.HUD) {
                                     UIManager.Instance.RefreshActiveBuffsHUD();
                                 }

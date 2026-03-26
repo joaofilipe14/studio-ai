@@ -1,0 +1,46 @@
+.tutorial-overlay {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    background-color: rgba(0, 0, 0, 0.85); /* Fundo escuro transparente */
+    align-items: center;
+    justify-content: center;
+}
+
+.tutorial-panel {
+    background-color: #111111;
+    border-color: #00ffff; /* Borda Ciano Néon */
+    border-width: 2px;
+    border-radius: 10px;
+    padding: 30px;
+    width: 600px;
+    align-items: center;
+}
+
+.tutorial-title {
+    color: #00ffff;
+    font-size: 36px;
+    -unity-font-style: bold;
+    margin-bottom: 20px;
+}
+
+.tutorial-text {
+    color: white;
+    font-size: 20px;
+    white-space: normal; /* Permite quebras de linha */
+    margin-bottom: 30px;
+}
+
+.tutorial-button {
+    background-color: #00ffff;
+    color: black;
+    font-size: 24px;
+    -unity-font-style: bold;
+    padding: 15px 40px;
+    border-radius: 5px;
+    transition-duration: 0.2s;
+}
+
+.tutorial-button:hover {
+    background-color: white;
+    scale: 1.05;
+}

@@ -29,7 +29,7 @@ Transformar o Studio-AI de um protótipo funcional num estúdio de produção co
 
 ---
 
-## Fase 7 — O Ciclo Roguelite & As Lojas Dinâmicas (Concluída) 🟢
+## Fase 7 — O Ciclo Roguelite & As Lojas Dinâmicas (Quase Concluída) 🟡
 *Foco: Transição de "Proof of Concept" para Jogo Indie Completo com Meta-Progresso.*
 - [x] **O Hub Dinâmico (O Cofre):**
     - [x] Refatorar UXML/USS para usar Grelhas Flexíveis e design Premium Cyberpunk.
@@ -41,13 +41,14 @@ Transformar o Studio-AI de um protótipo funcional num estúdio de produção co
     - [x] Descontar "Moedas de Ouro" ganhas na Run atual.
 - [x] **Orquestração Python Automática:**
     - [x] O `tool_runner.py` injeta JSONs, UXMLs, USSs e CS dinamicamente na *Build* final sem *hardcoding*.
-- [ ] **Implementação Funcional dos Power-Ups:** *(NOVO)*
-    - [ ] Ligar variáveis temporárias (Safe Room) e permanentes (Cofre) ao `GameManager.cs`.
-    - [ ] Garantir que o Boost de Tempo adiciona segundos reais ao HUD e que a Vida Extra atualiza o limite de danos.
-- [ ] **Implementação Visual dos Power-Ups (Juice):** *(NOVO)*
-    - [ ] **UI:** Feedback visual na compra (ex: o relógio pisca a verde quando se compra tempo, partículas de dinheiro a voar).
+- [x] **Implementação Funcional dos Power-Ups:** *(NOVO)*
+    - [x] Ligar variáveis temporárias (Safe Room) e permanentes (Cofre) ao `GameManager.cs`.
+    - [x] Garantir que o Boost de Tempo adiciona segundos reais ao HUD e que a Vida Extra atualiza o limite de danos.
+- [x] **Implementação Visual dos Power-Ups (UI):** *(NOVO)*
+    - [x] **UI do HUD:** Feedback visual avançado na UI (Efeito Vidro/Glassmorphism, Efeito Espelho, Cores baseadas em Raridade).
+- [ ] **Implementação Visual dos Power-Ups (In-Game Juice):** *(NOVO)*
     - [ ] **In-Game:** Feedback visual no Agente (ex: rasto de luz/partículas quando tem o *Speed Boost*, cone da lanterna aumenta visivelmente e muda de cor com o *Vision Boost*).
-  
+
 ## Fase 8 — Agente de Game Design (Expansão de Conteúdo Infinita) 🤖 (PRÓXIMO PASSO)
 *Foco: A IA inventa novas expansões de jogo sozinha (Personagens, Upgrades e Arte).*
 - [ ] **O Arquiteto de Conteúdo (Python + LLM):**

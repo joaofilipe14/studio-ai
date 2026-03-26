@@ -1,0 +1,10 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <Style src="TutorialStyle.uss" />
+    <ui:VisualElement class="tutorial-overlay" name="tutorial-overlay">
+        <ui:VisualElement class="tutorial-panel">
+            <ui:Label text="INICIAÇÃO AO SISTEMA" class="tutorial-title" />
+            <ui:Label text="Bem-vindo, Agente. O teu objetivo é sobreviver a 10 níveis.&#10;&#10;[WASD / SETAS] - Mover&#10;[DIAMANTES] - Apanha para comprar Upgrades no Cofre.&#10;[VERMELHO] - Inimigos e Armadilhas (Morte Imediata!).&#10;[VERDE] - A Saída.&#10;&#10;Chega ao fim antes que o tempo acabe." class="tutorial-text" />
+            <ui:Button text="ENTENDIDO" name="btn-close" class="tutorial-button" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

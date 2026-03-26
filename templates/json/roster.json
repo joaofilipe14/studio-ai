@@ -3,7 +3,7 @@
     {
       "id": "Explorer",
       "name": "O Explorador",
-      "description": "Equilibrado. Excelente visão no escuro.",
+      "description": "Equilibrado. Excelente vis\u00e3o no escuro.",
       "spriteName": "ExplorerSprite",
       "cost": 0,
       "stats": {
@@ -16,7 +16,7 @@
     {
       "id": "Ninja",
       "name": "Ninja Runner",
-      "description": "Muito rápido, mas a lanterna é fraca.",
+      "description": "Muito r\u00e1pido, mas a lanterna \u00e9 fraca.",
       "spriteName": "NinjaSprite",
       "cost": 50,
       "stats": {
@@ -29,7 +29,7 @@
     {
       "id": "Tank",
       "name": "O Tanque",
-      "description": "Lento e pesado, mas começa com muito mais vida.",
+      "description": "Lento e pesado, mas come\u00e7a com muito mais vida.",
       "spriteName": "TankSprite",
       "cost": 100,
       "stats": {
@@ -44,32 +44,32 @@
     {
       "id": "item_life",
       "name": "Vida Extra",
-      "description": "Aumenta a tua vida máxima permanentemente em 1.",
-      "cost": 150
+      "description": "Aumenta a tua vida m\u00e1xima permanentemente em 1.",
+      "cost": 200
     },
     {
       "id": "item_time_boost",
       "name": "Boost de Tempo Base",
-      "description": "Aumenta o tempo inicial de todos os níveis.",
-      "cost": 200
+      "description": "Aumenta o tempo inicial de todos os n\u00edveis.",
+      "cost": 250
     },
     {
       "id": "item_luck_boost",
       "name": "Sorte Clandestina",
       "description": "Aumenta a probabilidade de aparecerem itens RAROS na Zona Segura.",
-      "cost": 75
+      "cost": 90
     },
     {
       "id": "item_perm_speed",
-      "name": "Óleo de Motor Sintético",
+      "name": "\u00d3leo de Motor Sint\u00e9tico",
       "description": "Aumenta a tua velocidade de movimento permanentemente em +0.5.",
-      "cost": 120
+      "cost": 150
     },
     {
       "id": "item_trap_reduction",
-      "name": "Hack de Segurança",
-      "description": "Reduz o número de armadilhas geradas no labirinto permanentemente.",
-      "cost": 180
+      "name": "Hack de Seguran\u00e7a",
+      "description": "Reduz o n\u00famero de armadilhas geradas no labirinto permanentemente.",
+      "cost": 220
     }
   ]
 }

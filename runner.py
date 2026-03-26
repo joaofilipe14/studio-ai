@@ -19,7 +19,7 @@ def main_runner():
     run_section = config.get('run', {})
     # Vamos fazer 10 simulações seguidas por defeito
     total_runs = run_section.get('num_runs', 5)
-
+    overview_flag = run_section.get('overview', True)
     print("=" * 60)
     print(f" 🏃 RUNNER DE CAMPANHA INICIADO (FASE 4)")
     print(f" O Bot vai jogar e testar a Campanha com os modos originais!")
@@ -32,7 +32,7 @@ def main_runner():
         try:
             # O Orquestrador executa a Simulação e a Evolução
             # O Bot vai simplesmente jogar a campanha até morrer e a IA conserta o gargalo!
-            run_orchestrator()
+            run_orchestrator(visible_run=overview_flag)
         except Exception as e:
             erro_msg = str(e)
             print(f"\n[bold red][ERRO NA GERAÇÃO] Falha na execução:[/bold red] {erro_msg}")

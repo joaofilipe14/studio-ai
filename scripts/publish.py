@@ -5,12 +5,7 @@ import json
 from rich import print
 
 def load_yaml(path: str):
-    """Carrega as configurações do projeto."""
-    if not os.path.exists(path):
-        # Se for chamado de dentro da pasta scripts, recua um nível
-        alt_path = os.path.join("..", path)
-        path = alt_path if os.path.exists(alt_path) else path
-
+    """Carrega as configurações do projeto de forma absoluta."""
     if not os.path.exists(path):
         return {}
     with open(path, "r", encoding="utf-8") as f:
@@ -19,14 +14,19 @@ def load_yaml(path: str):
 def publish_game():
     print("[cyan]A iniciar o Pipeline de Release (Studio-AI - Fase 4)...[/cyan]")
 
+    # 🚨 NOVO: Descobre a raiz do projeto de forma absoluta!
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.abspath(os.path.join(script_dir, ".."))
+
     # 0. CARREGAR CONFIGURAÇÃO DINÂMICA
-    config = load_yaml("config.yaml")
+    config_path = os.path.join(base_dir, "config.yaml")
+    config = load_yaml(config_path)
     paths = config.get("paths", {})
 
-    # Lemos os caminhos configurados
-    projects_root = paths.get("projects", "workspace/projects")
-    releases_root = paths.get("releases", "workspace/releases")
-    hall_of_fame_dir = paths.get("hall_of_fame", "workspace/hall_of_fame") # 🎯 Adicionado Hall of Fame
+    # Lemos os caminhos configurados e juntamos à base do projeto
+    projects_root = os.path.join(base_dir, paths.get("projects", "workspace/projects"))
+    releases_root = os.path.join(base_dir, paths.get("releases", "workspace/releases"))
+    hall_of_fame_dir = os.path.join(base_dir, paths.get("hall_of_fame", "workspace/hall_of_fame"))
 
     pn = "game_001"
     builds_dir = os.path.join(projects_root, pn, "Builds")
@@ -34,6 +34,7 @@ def publish_game():
 
     if not os.path.exists(builds_dir):
         print(f"[red]Erro: Pasta de Builds não encontrada em {builds_dir}.[/red]")
+        print("[yellow]Dica: Já correnteste o orchestrator para compilar o jogo?[/yellow]")
         return
 
     print(f"[white]A limpar a versão de produção anterior em {release_dir}...[/white]")
@@ -69,9 +70,9 @@ def publish_game():
         sources.extend([
             os.path.join(hall_of_fame_dir, j_file),     # 1.5. Hall of Fame (caso tenha o nome exato)
             os.path.join(builds_dir, j_file),           # 2. Pasta de Builds (A Campanha a ser ativamente evoluída)
-            os.path.join("templates", "json", j_file),  # 3. Templates (Onde guardamos as evoluções manuais)
-            os.path.join(".", j_file),                  # 4. Raiz do projeto
-            os.path.join("templates", "unity", j_file)  # 5. Template original de fallback
+            os.path.join(base_dir, "templates", "json", j_file),  # 3. Templates (Onde guardamos as evoluções manuais)
+            os.path.join(base_dir, j_file),             # 4. Raiz do projeto
+            os.path.join(base_dir, "templates", "unity", j_file)  # 5. Template original de fallback
         ])
 
         copied = False
@@ -120,3 +121,6 @@ def publish_game():
         json.dump(clean_save, f, indent=4)
     print(f"\n[bold green]🎉 Release de Produção concluída com sucesso![/bold green]")
     print(f"O teu jogo final está na pasta: {os.path.abspath(release_dir)}\n")
+
+if __name__ == "__main__":
+    publish_game()

@@ -99,7 +99,7 @@ def call_tool(name: str, args: dict, config: dict, env_data: Optional[Dict[str, 
                         manifest["dependencies"] = {}
 
                     manifest["dependencies"]["com.unity.test-framework"] = "1.1.33"
-
+                    manifest["dependencies"]["com.unity.render-pipelines.universal"] = "14.0.8"
                     with open(manifest_path, "w", encoding="utf-8") as f:
                         json.dump(manifest, f, indent=2)
 
@@ -150,10 +150,11 @@ def call_tool(name: str, args: dict, config: dict, env_data: Optional[Dict[str, 
             if os.path.exists(TEMPLATES_DIR):
                 for filename in os.listdir(TEMPLATES_DIR):
                     if filename.endswith(".cs"):
-                        dst_path = os.path.join(editor_dir if filename == "BuildScript.cs" else assets_dir, filename)
+                        is_editor_script = filename in ["BuildScript.cs", "AutoSetupURP.cs"]
+                        dst_path = os.path.join(editor_dir if is_editor_script else assets_dir, filename)
                         src_path = os.path.join(TEMPLATES_DIR, filename)
                         shutil.copy2(src_path, dst_path)
-                        print(f"[DEBUG] Script C# Sincronizado: {filename}")
+                        print(f"[DEBUG] Script C# Sincronizado: {filename} -> {'Editor' if is_editor_script else 'Assets'}")
 
     if name == "run_game_simulation" and "log_dir" not in args:
         args["log_dir"] = config.get("paths", {}).get("logs", "workspace/logs")

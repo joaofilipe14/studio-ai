@@ -19,29 +19,32 @@ def get_progressive_boundaries(level_id: int) -> dict:
         "min_traps": int(0 + (factor * 5)),
         "max_traps": int(2 + (factor * 18)),
         "min_time": 30,
-        "max_time": 400
+        "max_time": 400,
+        "min_coins": int(1 + (factor * 2)),  # Começa em 1, cresce devagar
+        "max_coins": int(5 + (factor * 15))  # Nunca passa de umas 20 no Nível 10!
     }
 
 def _get_player_context(player_save: dict, current_roster: dict) -> str:
-    """Extrai o contexto do jogador para a IA ler"""
+    """Extrai o contexto do jogador para a IA ler e conta os upgrades totais"""
     loadout = player_save.get("loadout", {})
     selected_class_id = loadout.get("selectedClassID", "Desconhecido")
 
     class_stats = {}
-    for char in current_roster.get("classes", []):
-        if char["id"] == selected_class_id:
-            class_stats = char.get("stats", {})
-            break
+    if current_roster and "classes" in current_roster:
+        for char in current_roster.get("classes", []):
+            if char["id"] == selected_class_id:
+                class_stats = char.get("stats", {})
+                break
 
     upgrades = player_save.get("purchasedUpgrades", {})
+    total_upgrades = sum(upgrades.values()) if upgrades else 0
 
     return f"""
     PLAYER CHARACTER: {selected_class_id}
     - Base Speed: {class_stats.get('speed', 'Unknown')}
-    - Vision Radius: {class_stats.get('visionRadius', 'Unknown')}
     - Base Lives: {class_stats.get('baseLives', 'Unknown')}
     
-    PURCHASED UPGRADES (Meta-Progression):
+    TOTAL META-UPGRADES PURCHASED: {total_upgrades}
     - Extra Time Lvl: {upgrades.get('startExtraTimeLvl', 0)}
     - More PowerUps Lvl: {upgrades.get('morePowerUpsLvl', 0)}
     - Perm Speed Lvl: {upgrades.get('permSpeedLvl', 0)}
@@ -60,14 +63,33 @@ def evolve_bot_genome(config: dict, metrics: dict, current_genome: dict, player_
     timeouts = my_report.get("timeouts", 0)
     collected_coins = my_report.get("collected_coins", 0)
 
-    target_min = 0.50
-    target_max = 0.70
+    # 🚨 PILAR 1: A NOVA CURVA DE WIN-RATE
+    if level_id <= 3:
+        target_min, target_max = 0.85, 0.95
+        archetype = "The Tutorial: High win rate expected (85-95%). Very easy, few enemies, generous time."
+    elif level_id <= 6:
+        target_min, target_max = 0.50, 0.60
+        archetype = "The Friction Point: Medium difficulty (50-60%). The player should start sweating and losing some lives."
+    elif level_id <= 9:
+        target_min, target_max = 0.20, 0.30
+        archetype = "The Gauntlet: Hard (20-30%). Brutal difficulty. Player is expected to die multiple times and rely on the shop."
+    else:
+        target_min, target_max = 0.05, 0.15
+        archetype = "The Final Boss (Level 10): Glorious hell (5-15%). Extremely low win rate, maximum tension."
+
+    # 🚨 PILAR 2: IMUNIDADE DE NÍVEL (Proteção contra o God Mode)
+    upgrades = player_save.get("purchasedUpgrades", {})
+    total_upgrades = sum(upgrades.values()) if upgrades else 0
+    immunity_clause = ""
+
+    if level_id <= 3 and total_upgrades > 2:
+        immunity_clause = "CRITICAL IMMUNITY RULE: The player has multiple meta-upgrades. You MUST NOT increase the difficulty of this early level. Keep enemies and traps at the bare minimum, regardless of the high win rate."
 
     player_context = _get_player_context(player_save, current_roster)
 
     prompt = f"""
     You are an expert Game Level Designer acting as a "Dungeon Master" for a Roguelite game.
-    Your goal is to evolve LEVEL {level_id} for a BOT player. You must balance tension and relief.
+    Your goal is to SURGICALLY evolve LEVEL {level_id} for a BOT player. 
     
     {player_context}
     
@@ -78,23 +100,22 @@ def evolve_bot_genome(config: dict, metrics: dict, current_genome: dict, player_
     - Actual Win Rate: {win_rate:.2f} (Target is {target_min:.2f} to {target_max:.2f})
     - Lives Lost (Enemies/Traps): {lives_lost}
     - Timeouts: {timeouts}
-    - Coins Collected: {collected_coins}
     
-    DESIGN ARCHETYPES (Choose one implicitly based on level number and metrics):
-    - Level 1-2 (The Warmup): Low enemies, few traps, generous time.
-    - Level 4 (The Wall): High enemies OR high traps.
-    - Level 5 (The Breather): Lower difficulty, more coins.
-    - Level 7+ (The Gauntlet): High danger.
+    DESIGN ARCHETYPE FOR LEVEL {level_id}:
+    {archetype}
+    
+    {immunity_clause}
     
     DESIGN RULES:
-    1. If the player's character is SLOW (Speed < 6) and Timeouts > 0, INCREASE "rules.timeLimit". Do not make it impossible.
-    2. If the player has high Trap Reduction upgrades, INCREASE base traps to compensate.
-    3. RISK VS REWARD: If you increase enemies or traps significantly, you MUST also increase "rules.targetCount" (coins) so the player feels rewarded for the risk.
+    1. If the player's character is SLOW (Speed < 6) and Timeouts > 0, INCREASE "rules.timeLimit".
+    2. RISK VS REWARD: If you increase enemies or traps significantly, you MUST also increase "rules.targetCount" (coins).
+    3. SURGICAL TWEAK: Only change variables that are causing issues (e.g., if Timeouts > 0, fix time. If Lives Lost > 0, tweak enemies/traps). Do not change everything blindly.
     4. "rules.enemyCount" bounds: {bounds['min_enemies']} to {bounds['max_enemies']}.
     5. "rules.enemySpeed" bounds: {bounds['min_speed']} to {bounds['max_speed']}.
     6. "obstacles.count" bounds: {bounds['min_obstacles']} to {bounds['max_obstacles']}.
     7. "rules.trapCount" bounds: {bounds['min_traps']} to {bounds['max_traps']}.
     8. "rules.timeLimit" bounds: {bounds['min_time']} to {bounds['max_time']}.
+    9. "rules.targetCount" (Coins) bounds: {bounds['min_coins']} to {bounds['max_coins']}.
     
     OUTPUT TASK: Return ONLY a strictly valid JSON object structured EXACTLY like this:
     {{
@@ -110,58 +131,71 @@ def evolve_bot_genome(config: dict, metrics: dict, current_genome: dict, player_
 # ==========================================
 # (As funções _apply_genome_bounds, evolve_human_genome, evolve_economy mantêm-se inalteradas na base, mas precisas de atualizar o evolve_human_genome para aceitar o player_save e o current_roster também se o usares)
 # ==========================================
-
-def evolve_human_genome(config: dict, metrics: dict, current_genome: dict, player_save: dict, current_roster: dict) -> dict:
+def evolve_human_genome(config: dict, metrics: dict, current_genome: dict) -> dict:
     level_id = current_genome.get("level_id", 1)
     bounds = get_progressive_boundaries(level_id)
 
     level_reports = metrics.get("level_reports", [])
     my_report = next((rep for rep in level_reports if rep.get("level_id") == level_id), {})
 
+    win_rate = my_report.get("win_rate", 0.0)
     lives_lost = my_report.get("lives_lost", 0)
     timeouts = my_report.get("timeouts", 0)
-    collected_coins = my_report.get("collected_coins", 0)
 
-    acceptable_deaths = 0 if level_id <= 3 else (1 if level_id <= 7 else 3)
-
-    player_context = _get_player_context(player_save, current_roster)
+    # 🚨 PILAR 1: A NOVA CURVA DE WIN-RATE (Aplicada aos Humanos)
+    if level_id <= 3:
+        target_min, target_max = 0.85, 0.95
+        archetype = "The Tutorial: High win rate expected (85-95%). Very easy, few enemies, generous time. DO NOT overcomplicate."
+        acceptable_deaths = 0 # Não queremos o humano a morrer no tutorial!
+    elif level_id <= 6:
+        target_min, target_max = 0.50, 0.60
+        archetype = "The Friction Point: Medium difficulty (50-60%). The player should start sweating and losing some lives."
+        acceptable_deaths = 1
+    elif level_id <= 9:
+        target_min, target_max = 0.20, 0.30
+        archetype = "The Gauntlet: Hard (20-30%). Brutal difficulty. Player is expected to die multiple times and rely on the shop."
+        acceptable_deaths = 3
+    else:
+        target_min, target_max = 0.05, 0.15
+        archetype = "The Final Boss (Level 10): Glorious hell (5-15%). Extremely low win rate, maximum tension."
+        acceptable_deaths = 5
 
     prompt = f"""
-    You are an expert Game Level Designer. Evolve LEVEL {level_id} for a HUMAN player.
-    
-    {player_context}
+    You are an expert Game Level Designer.
+    Your goal is to SURGICALLY evolve LEVEL {level_id} for a HUMAN player. 
     
     CURRENT LEVEL CONFIGURATION:
     {json.dumps(current_genome, indent=2)}
     
-    HUMAN METRICS FOR LEVEL {level_id}:
-    - Lives Lost (Enemies/Traps): {lives_lost} (Acceptable limit is {acceptable_deaths})
+    HUMAN PLAYER METRICS FOR THIS LEVEL:
+    - Actual Win Rate: {win_rate:.2f} (Target is {target_min:.2f} to {target_max:.2f})
+    - Lives Lost (Enemies/Traps): {lives_lost}
     - Timeouts: {timeouts}
-    - Coins Collected: {collected_coins}
-
-    DESIGN ARCHETYPES (Choose one implicitly based on level number and metrics):
-    - Level 1-2 (The Warmup): Low enemies, few traps, generous time.
-    - Level 4 (The Wall): High enemies OR high traps.
-    - Level 5 (The Breather): Lower difficulty, more coins.
-    - Level 7+ (The Gauntlet): High danger.
-
-    STRICT PROGRESSION RULES:
-    1. If the player's character is SLOW (Speed < 6) and Timeouts > 0, INCREASE "rules.timeLimit".
-    2. RISK VS REWARD: If you increase enemies or traps significantly, you MUST also increase "rules.targetCount" (coins).
-    3. IF Lives Lost > {acceptable_deaths}: The level is TOO HARD. Decrease traps or enemy speed.
-    4. IF Lives Lost == 0: The level is TOO EASY. Increase traps or enemies slightly.
-    5. Bounds: Enemies ({bounds['min_enemies']}-{bounds['max_enemies']}), Speed ({bounds['min_speed']}-{bounds['max_speed']}), Obstacles ({bounds['min_obstacles']}-{bounds['max_obstacles']}), Traps ({bounds['min_traps']}-{bounds['max_traps']}).
     
-    OUTPUT FORMAT: Return ONLY a valid JSON object structured EXACTLY like this:
+    DESIGN ARCHETYPE FOR LEVEL {level_id}:
+    {archetype}
+    
+    STRICT PROGRESSION RULES:
+    1. IF Win Rate is within the target range ({target_min:.2f}-{target_max:.2f}), DO NOT CHANGE difficulty significantly.
+    2. IF Lives Lost > {acceptable_deaths}: The level is TOO HARD for this archetype. Decrease traps or enemy speed.
+    3. SURGICAL TWEAK: Only change variables that are causing issues (e.g., if Timeouts > 0, fix time limit). Do not change everything blindly.
+    4. "rules.enemyCount" bounds: {bounds['min_enemies']} to {bounds['max_enemies']}.
+    5. "rules.enemySpeed" bounds: {bounds['min_speed']} to {bounds['max_speed']}.
+    6. "obstacles.count" bounds: {bounds['min_obstacles']} to {bounds['max_obstacles']}.
+    7. "rules.trapCount" bounds: {bounds['min_traps']} to {bounds['max_traps']}.
+    8. "rules.timeLimit" bounds: {bounds['min_time']} to {bounds['max_time']}.
+    9. "rules.targetCount" (Coins) bounds: {bounds['min_coins']} to {bounds['max_coins']}.
+    
+    OUTPUT TASK: Return ONLY a strictly valid JSON object structured EXACTLY like this:
     {{
         "new_genome": {{ ... the updated genome object ... }}
     }}
     """
 
-    raw_result = _call_ollama(config, prompt, "Humano", current_genome)
+    raw_result = _call_ollama(config, prompt, "Human", current_genome)
     ng = raw_result.get("new_genome", current_genome) if isinstance(raw_result, dict) else current_genome
 
-    return _apply_genome_bounds(ng, level_id, bounds, "Humano")
+    return _apply_genome_bounds(ng, level_id, bounds, "Human")
 
 def _apply_genome_bounds(ng: dict, level_id: int, bounds: dict, player_type: str) -> dict:
     ng["level_id"] = level_id
@@ -171,6 +205,7 @@ def _apply_genome_bounds(ng: dict, level_id: int, bounds: dict, player_type: str
     rules["enemyCount"] = max(bounds['min_enemies'], min(bounds['max_enemies'], int(rules.get("enemyCount", 1))))
     rules["enemySpeed"] = max(bounds['min_speed'], min(bounds['max_speed'], float(rules.get("enemySpeed", 2.0))))
     rules["trapCount"] = max(bounds['min_traps'], min(bounds['max_traps'], int(rules.get("trapCount", 2))))
+    rules["targetCount"] = max(bounds['min_coins'], min(bounds['max_coins'], int(rules.get("targetCount", 3))))
     ng["rules"] = rules
 
     obstacles = ng.get("obstacles", {})

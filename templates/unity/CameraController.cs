@@ -28,8 +28,6 @@ public class CameraController : MonoBehaviour
 
     void Start() {
         if (isHumanMode) {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
             if (target != null) {
                 yaw = target.eulerAngles.y;
                 currentYaw = yaw;

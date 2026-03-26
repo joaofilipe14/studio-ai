@@ -1,29 +1,29 @@
 [
   {
     "level_id": 1,
-    "seed": 16629,
+    "seed": 65912,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
       "walls": true
     },
     "obstacles": {
-      "count": 30,
+      "count": 25,
       "minScale": 1.0,
       "maxScale": 1.85
     },
     "rules": {
-      "timeLimit": 40.0,
-      "targetCount": 2,
-      "enemyCount": 3,
-      "enemySpeed": 2.5,
-      "trapCount": 2,
+      "timeLimit": 180.0,
+      "targetCount": 4,
+      "enemyCount": 2,
+      "enemySpeed": 2.0,
+      "trapCount": 1,
       "trapPenalty": 3.2
     }
   },
   {
     "level_id": 2,
-    "seed": 80636,
+    "seed": 85163,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
@@ -35,39 +35,39 @@
       "maxScale": 1.9
     },
     "rules": {
-      "timeLimit": 40.0,
-      "targetCount": 3,
-      "enemyCount": 3,
-      "enemySpeed": 2.6,
-      "trapCount": 2,
+      "timeLimit": 120.0,
+      "targetCount": 5,
+      "enemyCount": 2,
+      "enemySpeed": 2.4,
+      "trapCount": 1,
       "trapPenalty": 5.0
     }
   },
   {
     "level_id": 3,
-    "seed": 68556,
+    "seed": 34941,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
       "walls": true
     },
     "obstacles": {
-      "count": 58,
+      "count": 35,
       "minScale": 1.0,
       "maxScale": 1.95
     },
     "rules": {
-      "timeLimit": 35.0,
-      "targetCount": 1,
-      "enemyCount": 4,
+      "timeLimit": 80.0,
+      "targetCount": 2,
+      "enemyCount": 1,
       "enemySpeed": 2.4,
-      "trapCount": 3,
+      "trapCount": 0,
       "trapPenalty": 3.6
     }
   },
   {
     "level_id": 4,
-    "seed": 50768,
+    "seed": 40127,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
@@ -79,83 +79,39 @@
       "maxScale": 2.0
     },
     "rules": {
-      "timeLimit": 35.0,
-      "targetCount": 4,
-      "enemyCount": 4,
-      "enemySpeed": 3.0,
-      "trapCount": 3,
+      "timeLimit": 80.0,
+      "targetCount": 7,
+      "enemyCount": 3,
+      "enemySpeed": 3.3,
+      "trapCount": 1,
       "trapPenalty": 3.8
     }
   },
   {
     "level_id": 5,
-    "seed": 26742,
+    "seed": 64754,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
       "walls": true
     },
     "obstacles": {
-      "count": 78,
+      "count": 76,
       "minScale": 1.0,
       "maxScale": 2.05
     },
     "rules": {
-      "timeLimit": 30.0,
-      "targetCount": 1,
-      "enemyCount": 6,
-      "enemySpeed": 3.7,
-      "trapCount": 7,
+      "timeLimit": 48.0,
+      "targetCount": 7,
+      "enemyCount": 4,
+      "enemySpeed": 3.4,
+      "trapCount": 4,
       "trapPenalty": 4.0
     }
   },
   {
     "level_id": 6,
-    "seed": 76632,
-    "theme": "Cyberpunk Neon",
-    "arena": {
-      "halfSize": 12.0,
-      "walls": true
-    },
-    "obstacles": {
-      "count": 47,
-      "minScale": 1.0,
-      "maxScale": 2.1
-    },
-    "rules": {
-      "timeLimit": 30.0,
-      "targetCount": 5,
-      "enemyCount": 2,
-      "enemySpeed": 2.8,
-      "trapCount": 2,
-      "trapPenalty": 4.2
-    }
-  },
-  {
-    "level_id": 7,
-    "seed": 63845,
-    "theme": "Cyberpunk Neon",
-    "arena": {
-      "halfSize": 12.0,
-      "walls": true
-    },
-    "obstacles": {
-      "count": 95,
-      "minScale": 1.0,
-      "maxScale": 2.15
-    },
-    "rules": {
-      "timeLimit": 25.0,
-      "targetCount": 1,
-      "enemyCount": 6,
-      "enemySpeed": 3.8,
-      "trapCount": 9,
-      "trapPenalty": 4.4
-    }
-  },
-  {
-    "level_id": 8,
-    "seed": 63973,
+    "seed": 53144,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
@@ -164,58 +120,102 @@
     "obstacles": {
       "count": 75,
       "minScale": 1.0,
+      "maxScale": 2.1
+    },
+    "rules": {
+      "timeLimit": 90.0,
+      "targetCount": 11,
+      "enemyCount": 4,
+      "enemySpeed": 3.5,
+      "trapCount": 6,
+      "trapPenalty": 4.2
+    }
+  },
+  {
+    "level_id": 7,
+    "seed": 53808,
+    "theme": "Cyberpunk Neon",
+    "arena": {
+      "halfSize": 12.0,
+      "walls": true
+    },
+    "obstacles": {
+      "count": 134,
+      "minScale": 1.0,
+      "maxScale": 2.15
+    },
+    "rules": {
+      "timeLimit": 120.0,
+      "targetCount": 13,
+      "enemyCount": 6,
+      "enemySpeed": 4.7,
+      "trapCount": 3,
+      "trapPenalty": 4.4
+    }
+  },
+  {
+    "level_id": 8,
+    "seed": 68575,
+    "theme": "Cyberpunk Neon",
+    "arena": {
+      "halfSize": 12.0,
+      "walls": true
+    },
+    "obstacles": {
+      "count": 150,
+      "minScale": 1.0,
       "maxScale": 2.2
     },
     "rules": {
-      "timeLimit": 25.0,
-      "targetCount": 6,
-      "enemyCount": 3,
-      "enemySpeed": 4.0,
+      "timeLimit": 40.0,
+      "targetCount": 15,
+      "enemyCount": 7,
+      "enemySpeed": 5.2,
       "trapCount": 3,
       "trapPenalty": 2.8
     }
   },
   {
     "level_id": 9,
-    "seed": 45102,
+    "seed": 65579,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
       "walls": true
     },
     "obstacles": {
-      "count": 135,
+      "count": 150,
       "minScale": 1.0,
       "maxScale": 2.25
     },
     "rules": {
-      "timeLimit": 20.0,
-      "targetCount": 1,
-      "enemyCount": 9,
-      "enemySpeed": 3.4,
-      "trapCount": 6,
+      "timeLimit": 60.0,
+      "targetCount": 8,
+      "enemyCount": 4,
+      "enemySpeed": 3.2,
+      "trapCount": 7,
       "trapPenalty": 4.8
     }
   },
   {
     "level_id": 10,
-    "seed": 75834,
+    "seed": 58137,
     "theme": "Cyberpunk Neon",
     "arena": {
       "halfSize": 12.0,
       "walls": true
     },
     "obstacles": {
-      "count": 160,
+      "count": 200,
       "minScale": 1.0,
       "maxScale": 2.3
     },
     "rules": {
-      "timeLimit": 20.0,
-      "targetCount": 7,
-      "enemyCount": 7,
-      "enemySpeed": 4.5,
-      "trapCount": 15,
+      "timeLimit": 40.0,
+      "targetCount": 15,
+      "enemyCount": 10,
+      "enemySpeed": 6.0,
+      "trapCount": 10,
       "trapPenalty": 5.0
     }
   }

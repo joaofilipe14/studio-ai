@@ -1,100 +1,68 @@
 {
-  "Enemy": {
-    "file": "EnemySprite.png",
-    "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} scary enemy monster, top-down perspective, full body, isolated on pure white background, flat colors"
-  },
-  "Floor": {
-    "file": "FloorTexture.png",
-    "is_sprite": false,
-    "prompt": "pixel art texture, {theme} floor tile, strictly top-down view, seamless pattern, flat 2d surface, no perspective"
-  },
-  "Wall": {
-    "file": "ObstacleTexture.png",
-    "is_sprite": false,
-    "prompt": "pixel art texture, {theme} solid metal wall crate, strictly top-down view, flat 2d, no perspective"
-  },
-  "Goal": {
-    "file": "GoalTexture.png",
-    "is_sprite": false,
-    "prompt": "pixel art texture, {theme} glowing exit teleport pad, strictly top-down view, flat 2d, centered"
-  },
-  "Collectible": {
-    "file": "CollectibleTexture.png",
-    "is_sprite": false,
-    "prompt": "pixel art texture, {theme} shiny valuable coin item, strictly top-down view, centered, isolated on solid background"
-  },
-  "Trap": {
-    "file": "TrapTexture.png",
-    "is_sprite": false,
-    "prompt": "pixel art texture, {theme} dangerous floor spikes trap, strictly top-down view, flat 2d, no perspective"
-  },
-  "PowerUp": {
-    "file": "PowerUpTexture.png",
-    "is_sprite": false,
-    "prompt": "pixel art texture, {theme} glowing energy battery potion, strictly top-down view, centered, flat 2d"
-  },
-  "ExtraLife": {
-    "file": "HeartSprite.png",
-    "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} glowing red heart health icon, isolated on pure white background, flat colors"
-  },
-  "PowerUpSpeed": {
-    "file": "SpeedBoostIcon.png",
-    "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} energy drink can icon, isolated on pure white background, flat colors"
-  },
-  "PowerUpVision": {
-    "file": "VisionBoostIcon.png",
-    "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} glowing tactical flashlight icon, isolated on pure white background, flat colors"
-  },
-  "ItemLife": {
+  "item_life": {
     "file": "ItemLifeIcon.png",
     "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} mechanical glowing red heart, tech-medical device, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
-    "negative_prompt": "photorealistic, realistic, 3d, isometric, perspective, landscape, scenery, shadows, gradients, messy, ugly, complex background, text, watermark, human, person, character, face, eyes, arms, legs, male, female, body, hand holding object"
+    "prompt": "pixel art sprite, {theme} extra life heart, glowing red, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
+    "negative_prompt": "photorealistic, 3d, human, character, face, messy, text, watermark"
   },
-  "ItemTimeBoost": {
+  "item_time_boost": {
     "file": "ItemTimeBoostIcon.png",
     "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} futuristic digital stopwatch, glowing cyan display, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
-    "negative_prompt": "photorealistic, realistic, 3d, isometric, perspective, landscape, scenery, shadows, gradients, messy, ugly, complex background, text, watermark, human, person, character, face, eyes, arms, legs, male, female, body, hand holding object"
+    "prompt": "pixel art sprite, {theme} hourglass or clock, glowing cyan, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
+    "negative_prompt": "photorealistic, 3d, human, character, face, messy, text, watermark"
   },
-  "ItemLuckBoost": {
+  "item_luck_boost": {
     "file": "ItemLuckBoostIcon.png",
     "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} holographic microchip with a neon clover symbol, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
-    "negative_prompt": "photorealistic, realistic, 3d, isometric, perspective, landscape, scenery, shadows, gradients, messy, ugly, complex background, text, watermark, human, person, character, face, eyes, arms, legs, male, female, body, hand holding object"
+    "prompt": "pixel art sprite, {theme} four-leaf clover or dice, glowing gold, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
+    "negative_prompt": "photorealistic, 3d, human, character, face, messy, text, watermark"
   },
-  "ItemPermSpeed": {
+  "item_perm_speed": {
     "file": "ItemPermSpeedIcon.png",
     "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} industrial energy drink can, pink neon labels, 'DRINK' text, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
-    "negative_prompt": "photorealistic, realistic, 3d, isometric, perspective, landscape, scenery, shadows, gradients, messy, ugly, complex background, text, watermark, human, person, character, face, eyes, arms, legs, male, female, body, hand holding object"
+    "prompt": "pixel art sprite, {theme} winged boot or lightning bolt, glowing neon, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
+    "negative_prompt": "photorealistic, 3d, human, character, face, messy, text, watermark"
   },
-  "ItemTrapReduction": {
+  "item_trap_reduction": {
     "file": "ItemTrapReductionIcon.png",
     "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} deactivated mechanical floor spikes trap, broken metallic pieces, glowing red holographic X symbol over it, inanimate machine, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
-    "negative_prompt": "photorealistic, realistic, 3d, isometric, perspective, landscape, scenery, shadows, gradients, messy, ugly, complex background, text, watermark, human, person, character, face, eyes, arms, legs, male, female, body, hand holding object"
+    "prompt": "pixel art sprite, {theme} shield or radar jammer, glowing purple, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
+    "negative_prompt": "photorealistic, 3d, human, character, face, messy, text, watermark"
+  },
+  "icon-temp-speed": {
+    "file": "icon-temp-speed.png",
+    "is_sprite": true,
+    "prompt": "pixel art sprite, {theme} energy drink or adrenaline syringe, glowing neon, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
+    "negative_prompt": "photorealistic, 3d, human, character, face, messy, text, watermark"
+  },
+  "icon-temp-vision": {
+    "file": "icon-temp-vision.png",
+    "is_sprite": true,
+    "prompt": "pixel art sprite, {theme} tactical flashlight or bionic eye, bright beam, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
+    "negative_prompt": "photorealistic, 3d, human, character, face, messy, text, watermark"
+  },
+  "icon-temp-trap": {
+    "file": "icon-temp-trap.png",
+    "is_sprite": true,
+    "prompt": "pixel art sprite, {theme} holographic map or scanner device, tech style, single isolated object, game inventory icon, centered, flat lighting, isolated on pure white background",
+    "negative_prompt": "photorealistic, 3d, human, character, face, messy, text, watermark"
   },
   "Explorer": {
     "file": "ExplorerSprite.png",
     "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} cyberpunk explorer character, balanced gear, neon pink hair, top-down perspective, full body standing, isolated on pure white background",
-    "negative_prompt": "photorealistic, realistic, 3d, isometric, perspective, landscape, scenery, shadows, gradients, messy, ugly, complex background, text, watermark"
+    "prompt": "pixel art sprite, {theme} O Explorador character, top-down perspective, full body standing, isolated on pure white background",
+    "negative_prompt": "photorealistic, 3d, landscape, messy, text, watermark"
   },
   "Ninja": {
     "file": "NinjaSprite.png",
     "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} cyberpunk ninja runner, stealth suit, glowing visor, agile stance, top-down perspective, full body standing, isolated on pure white background",
-    "negative_prompt": "photorealistic, realistic, 3d, isometric, perspective, landscape, scenery, shadows, gradients, messy, ugly, complex background, text, watermark"
+    "prompt": "pixel art sprite, {theme} Ninja Runner character, top-down perspective, full body standing, isolated on pure white background",
+    "negative_prompt": "photorealistic, 3d, landscape, messy, text, watermark"
   },
   "Tank": {
     "file": "TankSprite.png",
     "is_sprite": true,
-    "prompt": "pixel art sprite, {theme} heavy armored cyberpunk soldier, massive build, metallic plating, top-down perspective, full body standing, isolated on pure white background",
-    "negative_prompt": "photorealistic, realistic, 3d, isometric, perspective, landscape, scenery, shadows, gradients, messy, ugly, complex background, text, watermark"
+    "prompt": "pixel art sprite, {theme} O Tanque character, top-down perspective, full body standing, isolated on pure white background",
+    "negative_prompt": "photorealistic, 3d, landscape, messy, text, watermark"
   }
 }

@@ -23,7 +23,7 @@
 .box-lives { border-bottom-color: rgb(255, 50, 50); }
 .box-timer { border-bottom-color: rgb(0, 255, 255); }
 .box-score { border-bottom-color: rgb(255, 204, 51); }
-
+.box-level { border-bottom-color: rgb(180, 50, 255); }
 .hud-text {
     font-size: 32px;
     color: white;
@@ -32,6 +32,7 @@
 
 .text-cyan { color: rgb(0, 255, 255); }
 .text-yellow { color: rgb(255, 204, 51); }
+.text-purple { color: rgb(180, 50, 255); }
 
 .icon {
     width: 35px;
@@ -51,52 +52,91 @@
     flex-direction: column;
     align-items: center;
 }
+.buffs-wrapper {
+    position: absolute;
+    left: 40px;
+    right: 40px; /* Estica-se ao longo do ecrã para alinhar os buffs */
+    top: 110px;
+    flex-direction: row; /* Coloca as duas colunas lado a lado */
+    justify-content: space-between; /* Empurra uma para a esquerda, outra para a direita */
+}
+.hud-buff-icon-left {
+    align-items: flex-start; /* Encosta o número à esquerda */
+}
+.hud-buff-amount-left {
+    border-top-right-radius: 6px;
+    border-bottom-left-radius: 6px;
+    border-top-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+}
 
+/* Para a coluna da Direita (Números à direita) */
+.hud-buff-icon-right {
+    align-items: flex-end; /* Encosta o número à direita */
+}
+.hud-buff-amount-right {
+    border-top-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+    border-top-right-radius: 0px;
+    border-bottom-left-radius: 0px;
+}
+
+/* O quadrado/bola onde fica o ícone */
 .hud-buff-icon {
-    width: 48px;
-    height: 48px;
-    margin-bottom: 12px; /* Espaço entre cada ícone verticalmente */
-    background-color: rgba(10, 15, 20, 0.9);
+    width: 60px;
+    height: 60px;
+    margin-bottom: 12px;
+    background-color: rgba(75, 85, 100, 0.85);
     border-radius: 8px;
     border-width: 2px;
-    border-color: rgba(0, 255, 255, 0.4); /* Borda Cyberpunk (Ciano) */
-    border-bottom-width: 4px; /* Mais grossa em baixo para condizer com o HUD */
+    border-color: rgba(0, 255, 255, 0.4);
+    border-bottom-width: 4px;
     border-bottom-color: rgb(0, 255, 255);
-    -unity-background-scale-mode: scale-to-fit;
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.15); /* Brilho Néon */
+    -unity-background-scale-mode: scale-and-crop;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.15);
+    justify-content: flex-end; /* Empurra o número para baixo */
 }
-.icon-item-life { background-image: resource("Sprites/HeartSprite"); }
-.icon-item-time-boost { background-image: resource("Sprites/TimeSprite"); } /* Imagem de relógio/tempo */
-.icon-item-perm-speed { background-image: resource("Sprites/SpeedSprite"); } /* Imagem de velocidade */
-.icon-item-trap-reduction { background-image: resource("Sprites/ShieldSprite"); } /* Imagem de escudo/jammer */
-.icon-item-luck-boost { background-image: resource("Sprites/LuckSprite"); } /* Imagem de trevo/sorte */
 
-
+/* O número dentro do quadrado (Ex: "x3" ou o "Lvl 5") */
+.hud-buff-amount {
+    color: white;
+    -unity-font-style: bold;
+    font-size: 14px;
+    background-color: rgba(0, 0, 0, 0.85); /* Fundo preto forte atrás do número */
+    padding: 2px 5px;
+    border-top-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+    margin: 0;
+}
+.icon-heart {
+    background-image: resource("Sprites/ItemLifeIcon");
+    margin-left: 0;
+    width: 60px;
+    height: 60px;
+}
 /* ==========================================
-   ÍCONES DA SAFE ROOM (PODERES TEMPORÁRIOS)
+   GERADO AUTOMATICAMENTE POR SYNC_ASSETS.PY
    ========================================== */
-/* Agrupamos as 3 raridades para usarem a mesma imagem base (o C# trata da cor da borda!) */
-
-/* Velocidade (Bebidas, Adrenalina, Pernas) */
+.icon-item-life { background-image: resource("Sprites/ItemLifeIcon"); }
+.icon-item-time-boost { background-image: resource("Sprites/ItemTimeBoostIcon"); }
+.icon-item-luck-boost { background-image: resource("Sprites/ItemLuckBoostIcon"); }
+.icon-item-perm-speed { background-image: resource("Sprites/ItemPermSpeedIcon"); }
+.icon-item-trap-reduction { background-image: resource("Sprites/ItemTrapReductionIcon"); }
 .icon-temp-speed-common,
 .icon-temp-speed-uncommon,
 .icon-temp-speed-rare {
-    background-image: resource("Sprites/SpeedSprite");
+    background-image: resource("Sprites/icon-temp-speed");
 }
-
-/* Visão / Lanterna (Pilhas, Tática, Olho Biónico) */
 .icon-temp-vision-common,
 .icon-temp-vision-uncommon,
 .icon-temp-vision-rare {
-    background-image: resource("Sprites/VisionSprite");
+    background-image: resource("Sprites/icon-temp-vision");
 }
-
-/* Redução de Armadilhas (Mapas, Scanners, Hackers) */
 .icon-temp-trap-common,
 .icon-temp-trap-uncommon,
 .icon-temp-trap-rare {
-    background-image: resource("Sprites/ShieldSprite");
+    background-image: resource("Sprites/icon-temp-trap");
 }
-
-.icon-heart { background-image: resource("Sprites/HeartSprite"); margin-left: 0; }
-.icon-coin { background-image: resource("Textures/CollectibleTexture"); margin-right: 0; }
+.icon-explorer { background-image: resource("Sprites/ExplorerSprite"); }
+.icon-ninja { background-image: resource("Sprites/NinjaSprite"); }
+.icon-tank { background-image: resource("Sprites/TankSprite"); }

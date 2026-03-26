@@ -1,7 +1,3 @@
-.icon-explorer { background-image: resource("Sprites/ExplorerSprite"); }
-.icon-ninja { background-image: resource("Sprites/NinjaSprite"); }
-.icon-tank { background-image: resource("Sprites/TankSprite"); }
-
 /* Ajuste para as sprites não ficarem cortadas */
 .card-img {
     -unity-background-scale-mode: scale-to-fit;
@@ -167,9 +163,30 @@
     font-size: 16px;
     letter-spacing: 2px;
 }
-/* --- AUTO-GERADO PELO PYTHON --- */
+
+/* ==========================================
+   GERADO AUTOMATICAMENTE POR SYNC_ASSETS.PY
+   ========================================== */
 .icon-item-life { background-image: resource("Sprites/ItemLifeIcon"); }
 .icon-item-time-boost { background-image: resource("Sprites/ItemTimeBoostIcon"); }
 .icon-item-luck-boost { background-image: resource("Sprites/ItemLuckBoostIcon"); }
 .icon-item-perm-speed { background-image: resource("Sprites/ItemPermSpeedIcon"); }
 .icon-item-trap-reduction { background-image: resource("Sprites/ItemTrapReductionIcon"); }
+.icon-temp-speed-common,
+.icon-temp-speed-uncommon,
+.icon-temp-speed-rare {
+    background-image: resource("Sprites/icon-temp-speed");
+}
+.icon-temp-vision-common,
+.icon-temp-vision-uncommon,
+.icon-temp-vision-rare {
+    background-image: resource("Sprites/icon-temp-vision");
+}
+.icon-temp-trap-common,
+.icon-temp-trap-uncommon,
+.icon-temp-trap-rare {
+    background-image: resource("Sprites/icon-temp-trap");
+}
+.icon-explorer { background-image: resource("Sprites/ExplorerSprite"); }
+.icon-ninja { background-image: resource("Sprites/NinjaSprite"); }
+.icon-tank { background-image: resource("Sprites/TankSprite"); }

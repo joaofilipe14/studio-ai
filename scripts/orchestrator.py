@@ -35,7 +35,7 @@ def now_id():
     return time.strftime("%Y%m%d-%H%M%S")
 
 
-def main():
+def main(visible_run=False):
     config = load_yaml("config.yaml")
     state_path = config["paths"]["state"]
     db_path = os.path.join(config["paths"]["data"], "evolution.db")
@@ -116,8 +116,15 @@ def main():
     # 3. FASE DE SIMULAÇÃO
     print("\n[green]A iniciar Simulação QA (Bot)...[/green]")
 
-    sim_res = call_tool("run_game_simulation", {"exe_path": exe_path, "metrics_path": metrics_path,
-                                                "args": ["-botMode"]}, config)
+    sim_args = ["-botMode"]
+    if not visible_run:
+        sim_args.extend(["-batchmode", "-nographics"])
+
+    sim_res = call_tool("run_game_simulation", {
+        "exe_path": exe_path,
+        "metrics_path": metrics_path,
+        "args": sim_args
+    }, config)
 
     if not sim_res.get("ok"):
         print(f"[red]Erro na simulação: {sim_res.get('output')}[/red]")
@@ -175,8 +182,6 @@ def main():
             continue
 
         print(f"[magenta]A pedir ao AI Director para EVOLUIR o Nível {played_level_id}...[/magenta]")
-
-        # 🚨 PASSAMOS O PLAYER SAVE E O ROSTER PARA A IA LER!
         evolved_data = evolve_bot_genome(config, metrics_data, current_level, current_player_save, current_roster)
 
         if evolved_data and "new_genome" in evolved_data:
@@ -239,7 +244,6 @@ def main():
         player_coins = current_player_save.get("wallet", {}).get("totalCoins", 0)
         player_crystals = current_player_save.get("wallet", {}).get("timeCrystals", 0)
 
-        # 🚨 MAGIA DO SQLITE AQUI: Guarda tudo de forma limpa e estruturada na DB!
         log_economy_snapshot(db_path, current_session, player_coins, player_crystals, prices_snapshot)
 
         print(f"[cyan]📊 Histórico da inflação guardado na Base de Dados (tabela 'economy_history')![/cyan]")
@@ -250,19 +254,43 @@ def main():
     # 10. O VERDADEIRO HALL OF FAME (CAMPANHA COMPLETA VENCEDORA)
     # =========================================================
     if campaign_completed:
+        total_deaths = sum(rep.get("lives_lost", 0) for rep in level_reports)
+        lives_remaining = current_player_save.get("stats", {}).get("currentLives", 0)
+
+        is_masterpiece = True
+        rejection_reason = ""
+
+        # 🚨 Regra 1: O jogo não pode ser um passeio no parque (Tem de ter morrido pelo menos 5 vezes na campanha)
+        if total_deaths < 5:
+            is_masterpiece = False
+            rejection_reason = f"Demasiado fácil. O Bot só perdeu {total_deaths} vidas ao longo de todos os testes."
+
+        # 🚨 Regra 2: O Boss Final tem de deixar o jogador a suar (Não podem sobrar muitas vidas)
+        elif lives_remaining > 3:
+            is_masterpiece = False
+            rejection_reason = f"Sobraram demasiadas vidas ({lives_remaining}) no fim do jogo. Falta tensão dramática!"
+
         hall_of_fame_dir = config.get("paths", {}).get("hall_of_fame", "workspace/hall_of_fame")
-        target_dir = os.path.join(proj_abs, hall_of_fame_dir)
+        target_dir = os.path.abspath(hall_of_fame_dir)
         os.makedirs(target_dir, exist_ok=True)
-        hof_filename = os.path.join(proj_abs, hall_of_fame_dir, f"campaign_masterpiece_{now_id()}.json")
-        with open(hof_filename, "w", encoding="utf-8") as hof_file:
-            json.dump(campaign, hof_file, indent=2)
 
-        # 🚨 NOVO: Copiar também o Roster e a Safe Room para o Hall of Fame!
-        shutil.copy2(roster_path, os.path.join(proj_abs, hall_of_fame_dir, "roster.json"))
-        shutil.copy2(safe_room_path, os.path.join(proj_abs, hall_of_fame_dir, "safe_room_items.json"))
+        if is_masterpiece:
+            hof_filename = os.path.join(target_dir, f"campaign_masterpiece_{now_id()}.json")
+            with open(hof_filename, "w", encoding="utf-8") as hof_file:
+                json.dump(campaign, hof_file, indent=2)
+            shutil.copy2(roster_path, os.path.join(target_dir, "roster.json"))
+            shutil.copy2(safe_room_path, os.path.join(target_dir, "safe_room_items.json"))
 
-        print(f"\n[bold yellow]🏆 THE TRUE HALL OF FAME! O Bot conseguiu vencer o Nível 10![/bold yellow]")
-        print(f"[bold yellow]👑 Campanha e Economia de Ouro guardadas na pasta Hall of Fame![/bold yellow]")
+            print(f"\n[bold yellow]🏆 THE TRUE HALL OF FAME! Masterpiece Validada![/bold yellow]")
+            print(f"[bold yellow]👑 Campanha e Economia de Ouro guardadas com rigor na pasta Hall of Fame![/bold yellow]")
+        else:
+            print(f"\n[bold red]🚫 O Bot concluiu a Campanha, mas NÃO é uma Masterpiece![/bold red]")
+            print(f"[yellow]Motivo: {rejection_reason}[/yellow]")
+            print(f"[yellow]A apagar o Save do Bot para o forçar a treinar esta campanha com novas mutações...[/yellow]")
+
+            # Apaga o save do Bot para o obrigar a recomeçar a escalar a dificuldade
+            if os.path.exists(player_save_path):
+                os.remove(player_save_path)
 
     state["last_result"] = "ok"
     state["history"].append({"ts": now_id(), "result": "ok"})

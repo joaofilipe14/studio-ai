@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.UIElements; // 🚨 Adicionado para PanelSettings
 using UnityEditor.SceneManagement;
 using UnityEngine.SceneManagement;
+using UnityEditor.Build.Reporting;
 using System.IO;
 
 public class BuildScript {
@@ -25,20 +26,22 @@ public class BuildScript {
 
     public static void MakeBuild() {
         EnsureTagsExist();
-
-        // 🚨 O TRUQUE MAGNÍFICO: Criar o PanelSettings do UI Toolkit via Código!
         string uiDir = "Assets/Resources/UI";
         if (!Directory.Exists(uiDir)) Directory.CreateDirectory(uiDir);
         string panelPath = uiDir + "/DefaultPanelSettings.asset";
 
-        if (AssetDatabase.LoadAssetAtPath<PanelSettings>(panelPath) == null) {
-            PanelSettings ps = ScriptableObject.CreateInstance<PanelSettings>();
-            AssetDatabase.CreateAsset(ps, panelPath);
+        if (!File.Exists(panelPath)) {
+            PanelSettings newPanelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+            AssetDatabase.CreateAsset(newPanelSettings, panelPath);
             AssetDatabase.SaveAssets();
-            Debug.Log("[Studio-AI] DefaultPanelSettings gerado com sucesso!");
+            Debug.Log("[BuildScript] PanelSettings criado dinamicamente em: " + panelPath);
         }
 
         Scene newScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+        GameObject uiObj = new GameObject("UI_Toolkit_Root");
+        UIDocument doc = uiObj.AddComponent<UIDocument>();
+        doc.panelSettings = AssetDatabase.LoadAssetAtPath<PanelSettings>(panelPath);
 
         GameObject camObj = new GameObject("Main Camera");
         camObj.tag = "MainCamera";
@@ -66,12 +69,28 @@ public class BuildScript {
         string scenePath = sceneDir + "/MainScene.unity";
         EditorSceneManager.SaveScene(newScene, scenePath);
 
+        // ==========================================
+        // 🚨 A MÁGICA GRÁFICA DO STUDIO-AI (URP) 🚨
+        // ==========================================
+        Debug.Log("[Studio-AI] A injetar o URP e Post-Processing...");
+        AutoSetupURP.SetupURP(); // <--- Chama o nosso script de Néon antes de exportar!
+        // ==========================================
+
         BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions();
         buildPlayerOptions.scenes = new[] { scenePath };
         buildPlayerOptions.locationPathName = "Builds/Game001.exe";
         buildPlayerOptions.target = BuildTarget.StandaloneWindows64;
         buildPlayerOptions.options = BuildOptions.None;
 
-        BuildPipeline.BuildPlayer(buildPlayerOptions);
+        BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
+        BuildSummary summary = report.summary;
+
+        if (summary.result == BuildResult.Succeeded) {
+            Debug.Log("Build succeeded: " + summary.totalSize + " bytes");
+            EditorApplication.Exit(0);
+        } else if (summary.result == BuildResult.Failed) {
+            Debug.Log("Build failed");
+            EditorApplication.Exit(1);
+        }
     }
 }

@@ -28,6 +28,7 @@ public class PlayerStats {
     public int currentLives;
     public int maxLives;
     public int basePowerUpCount;
+    public bool hasSeenTutorial;
 }
 
 [System.Serializable]
